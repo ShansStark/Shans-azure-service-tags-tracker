@@ -21,6 +21,7 @@ import argparse
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
+from bs4 import BeautifulSoup
 
 # Setup logging
 logging.basicConfig(
@@ -46,35 +47,50 @@ def download_latest_json() -> Tuple[Dict, Dict]:
             r = session.get(AZURE_PUBLIC_IP_JSON_URL, timeout=60)
             r.raise_for_status()
             
-            # Extract metadata from the confirmation page
+            # Extract metadata from the confirmation page using BeautifulSoup
             metadata = {}
+            soup = BeautifulSoup(r.text, 'html.parser')
             
             # Extract version (e.g., "2025.10.20")
-            # The HTML structure is: <h3 class="h6">Version:</h3><p style="overflow-wrap:break-word">2025.10.20</p>
-            version_match = re.search(r'<h3[^>]*>Version:</h3>\s*<p[^>]*>([0-9.]+)</p>', r.text, re.IGNORECASE)
-            if version_match:
-                metadata['version'] = version_match.group(1)
-                logging.info(f"Found version: {metadata['version']}")
-            else:
+            # Look for "Version:" text and get the next paragraph
+            version_header = soup.find(string=re.compile("Version:", re.IGNORECASE))
+            if version_header:
+                version_p = version_header.find_next('p')
+                if version_p:
+                    metadata['version'] = version_p.text.strip()
+                    logging.info(f"Found version: {metadata['version']}")
+            
+            if not metadata.get('version'):
                 logging.warning("Could not extract version from Microsoft's page")
             
             # Extract date published (e.g., "10/24/2025")
-            # The HTML structure is: <h3 class="h6">Date Published:</h3><p style="overflow-wrap:break-word">10/24/2025</p>
-            date_match = re.search(r'<h3[^>]*>Date Published:</h3>\s*<p[^>]*>(\d{1,2}/\d{1,2}/\d{4})</p>', r.text, re.IGNORECASE)
-            if date_match:
-                metadata['date_published'] = date_match.group(1)
-                logging.info(f"Found date published: {metadata['date_published']}")
-            else:
+            # Look for "Date Published:" text and get the next paragraph
+            date_header = soup.find(string=re.compile("Date Published:", re.IGNORECASE))
+            if date_header:
+                date_p = date_header.find_next('p')
+                if date_p:
+                    metadata['date_published'] = date_p.text.strip()
+                    logging.info(f"Found date published: {metadata['date_published']}")
+            
+            if not metadata.get('date_published'):
                 logging.warning("Could not extract date published from Microsoft's page")
             
             if not metadata:
                 logging.warning("No metadata extracted - Microsoft's page format may have changed")
             
-            matches = re.findall(r'href="(https?://[^\"]+\.json)"', r.text, flags=re.IGNORECASE)
-            if not matches:
-                raise RuntimeError("Could not locate the JSON download link on the confirmation page.")
+            # Find the JSON download link
+            # Look for an anchor tag with href ending in .json
+            json_link = soup.find('a', href=re.compile(r'\.json$', re.IGNORECASE))
             
-            json_url = matches[0]
+            if not json_link:
+                # Fallback to regex if soup fails to find the link (unlikely but safe)
+                matches = re.findall(r'href="(https?://[^\"]+\.json)"', r.text, flags=re.IGNORECASE)
+                if not matches:
+                    raise RuntimeError("Could not locate the JSON download link on the confirmation page.")
+                json_url = matches[0]
+            else:
+                json_url = json_link['href']
+                
             logging.info(f"Downloading JSON from: {json_url}")
             
             # Extract metadata from filename as fallback (e.g., ServiceTags_Public_20251020.json)
@@ -114,11 +130,6 @@ def download_latest_json() -> Tuple[Dict, Dict]:
             else:
                 logging.error("All retry attempts failed.")
                 raise
-
-def calculate_data_hash(data: Dict) -> str:
-    """Calculate SHA256 hash of the data for change detection."""
-    json_str = json.dumps(data, sort_keys=True)
-    return hashlib.sha256(json_str.encode('utf-8')).hexdigest()
 
 def load_previous_data() -> Optional[Dict]:
     """Load the previous week's data for comparison."""

@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://eliaquimbrandao.github.io/azure-service-tags-tracker/sitemap.xml

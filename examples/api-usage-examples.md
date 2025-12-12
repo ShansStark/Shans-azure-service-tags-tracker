@@ -7,7 +7,7 @@ This document shows how to use the Azure Service Tags & IP Ranges Watcher as a p
 ## 📡 Base URL
 
 ```
-https://eliaquimbrandao.github.io/azure-service-tags-watcher
+https://eliaquimbrandao.github.io/azure-service-tags-tracker
 ```
 
 ## 📁 Available API Endpoints
@@ -75,7 +75,7 @@ function Test-AzureServiceChanges {
         [string]$ServiceName
     )
     
-    $baseUrl = "https://eliaquimbrandao.github.io/azure-service-tags-watcher"
+    $baseUrl = "https://eliaquimbrandao.github.io/azure-service-tags-tracker"
     
     Write-Host "`n🔍 Checking if '$ServiceName' had ANY changes in collected history..." -ForegroundColor Cyan
     Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`n" -ForegroundColor Cyan
@@ -222,7 +222,7 @@ from typing import List, Dict
 def test_azure_service_changes(service_name: str) -> None:
     """Check if a service had ANY changes across all historical data."""
     
-    base_url = 'https://eliaquimbrandao.github.io/azure-service-tags-watcher'
+    base_url = 'https://eliaquimbrandao.github.io/azure-service-tags-tracker'
     
     print(f"\n🔍 Checking if '{service_name}' had ANY changes in collected history...")
     print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
@@ -562,12 +562,12 @@ removed = ips1 - ips2
 
 ## 🔗 Additional Resources
 
-- **Live Dashboard**: <https://eliaquimbrandao.github.io/azure-service-tags-watcher>
-- **GitHub Repository**: <https://github.com/eliaquimbrandao/azure-service-tags-watcher>
+- **Live Dashboard**: <https://eliaquimbrandao.github.io/azure-service-tags-tracker>
+- **GitHub Repository**: <https://github.com/eliaquimbrandao/azure-service-tags-tracker>
 - **Microsoft Documentation**: [Azure Service Tags Overview](https://learn.microsoft.com/azure/virtual-network/service-tags-overview)
 
 ---
 
 ## 📞 Support
 
-For issues, feature requests, or contributions, please visit the [GitHub Issues page](https://github.com/eliaquimbrandao/azure-service-tags-watcher/issues).
+For issues, feature requests, or contributions, please visit the [GitHub Issues page](https://github.com/eliaquimbrandao/azure-service-tags-tracker/issues).

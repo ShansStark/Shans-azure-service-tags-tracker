@@ -6,6 +6,36 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [Unreleased] - 2025-12-12
+
+### 🚀 SEO, UI Polish & Content Expansion
+
+#### Added
+- **Homepage "Value Proposition" Section**
+  - Added "Why Teams Rely on This" section with 3 feature cards and 2 FAQ cards.
+  - Implemented collapsible/expandable cards for cleaner UI.
+  - Added "Glassmorphism" visual style with backdrop filters and gradients.
+- **SEO Optimization**
+  - Added JSON-LD Structured Data (`SoftwareApplication` schema).
+  - Added Open Graph (Facebook/LinkedIn) and Twitter Card meta tags.
+  - Added Canonical URLs to all pages.
+  - Created `robots.txt` to guide search engine crawlers.
+- **Roadmap Transparency**
+  - Added clear messaging about future premium features (Alerts & Custom Filtering) with Q3 2026 ETA.
+
+#### Changed
+- **Chart.js Library Update**
+  - Switched to `chart.umd.min.js` (v4.4.1) to resolve source map 404 errors in browser console.
+- **IP Search UI**
+  - Refactored IP search results to display as a clean vertical list instead of inline blocks.
+  - Added highlighting for matched IP ranges.
+- **Documentation Corrections**
+  - Updated all repository URLs from `azure-service-tags-watcher` to `azure-service-tags-tracker`.
+  - Corrected automation schedule time to **00:00 UTC** in `README.md` and `index.html`.
+  - Fixed broken links in API usage examples.
+
+---
+
 ## [Unreleased] - 2025-10-24
 
 ### 🎨 Analytics Dashboard Redesign & Timeline Improvements

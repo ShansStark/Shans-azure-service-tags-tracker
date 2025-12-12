@@ -35,7 +35,9 @@ A **100% FREE** serverless solution to monitor Microsoft Azure's 3000+ Service T
 
 ---
 
-## 🎯 What It Does
+## 🎯 Streamline Azure IP Tracking & Automation
+
+Azure Service Tags Tracker is a free, serverless solution that continuously monitors Microsoft Azure Service Tag and IP range updates — visualizing changes, exposing weekly diffs, and enabling automated workflows without hosting costs. It helps security, networking, and cloud teams discover configuration drift, prevent policy breakages, and integrate change data into automation. Export JSON APIs to power your own monitoring, alerting, and firewall automation.
 
 **Automatically tracks and visualizes changes** to Azure Service Tags weekly:
 
@@ -53,8 +55,8 @@ A **100% FREE** serverless solution to monitor Microsoft Azure's 3000+ Service T
 
 ```bash
 # Fork this repository on GitHub, then:
-git clone https://github.com/yourusername/azure-service-tags-watcher.git
-cd azure-service-tags-watcher
+git clone https://github.com/yourusername/azure-service-tags-tracker.git
+cd azure-service-tags-tracker
 ```
 
 ### 2. Enable GitHub Pages
@@ -71,16 +73,16 @@ cd azure-service-tags-watcher
 3. **Run workflow**
 4. Wait 2-3 minutes
 
-Done! Your dashboard will be live at: `https://yourusername.github.io/azure-service-tags-watcher`
+Done! Your dashboard will be live at: `https://yourusername.github.io/azure-service-tags-tracker`
 
-**Auto-updates**: Runs every **Monday 7 AM UTC** automatically
+**Auto-updates**: Runs every **Monday 00:00 UTC** automatically
 
 ---
 
 ## 📁 Project Structure
 
 ```text
-azure-service-tags-watcher/
+azure-service-tags-tracker/
 ├── .github/workflows/
 │   └── update-data.yml           # Weekly automation (GitHub Actions)
 ├── docs/                         # GitHub Pages website
@@ -166,7 +168,7 @@ All data is publicly accessible as JSON via GitHub Pages. You can integrate this
 
 ### Quick Reference
 
-**Base URL**: `https://yourusername.github.io/azure-service-tags-watcher`
+**Base URL**: `https://yourusername.github.io/azure-service-tags-tracker`
 
 **Available Endpoints**:
 
@@ -237,7 +239,7 @@ For any questions or suggestions, feel free to reach out:
 - **LinkedIn**: [Eliaquim Brandão](https://www.linkedin.com/in/eliaquim/)
 - **GitHub**: [Eliaquim Brandão](https://github.com/eliaquimbrandao)
 
-**🐛 Report issues** or suggest features in [GitHub Issues](https://github.com/eliaquimbrandao/azure-service-tags-watcher/issues)
+**🐛 Report issues** or suggest features in [GitHub Issues](https://github.com/eliaquimbrandao/azure-service-tags-tracker/issues)
 
 **🤝 Contribute** to make it even better for the Azure community!
 

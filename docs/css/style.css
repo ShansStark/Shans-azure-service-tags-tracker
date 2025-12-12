@@ -1914,6 +1914,14 @@ body {
     border-left-color: var(--danger-color);
 }
 
+.ip-item.ip-match-highlight {
+    background-color: #fff3cd;
+    border-left-color: #ffc107;
+    border-left-width: 5px;
+    font-weight: bold;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
 .ip-copy-actions {
     display: flex;
     justify-content: flex-end;
@@ -2952,6 +2960,38 @@ body {
     color: #666;
     margin-top: 5px;
     word-break: break-all;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.ip-match {
+    background-color: #fff3cd;
+    border: 1px solid #ffeeba;
+    color: #856404;
+    font-weight: bold;
+    padding: 0 2px;
+    border-radius: 2px;
+}
+
+.ip-group {
+    margin-bottom: 1rem;
+}
+
+.ip-group-title {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    margin-bottom: 0.5rem;
+    text-transform: uppercase;
+}
+
+.ip-group.added .ip-group-title {
+    color: var(--success-color);
+}
+
+.ip-group.removed .ip-group-title {
+    color: var(--danger-color);
 }
 
 @media (max-width: 768px) {
@@ -4290,4 +4330,148 @@ body {
     position: sticky;
     top: 0;
     z-index: 1000;
+}
+
+/* Features Section (Dark Theme) */
+.features-section {
+    background: linear-gradient(135deg, #1e3a8a 0%, #172554 100%);
+    color: white;
+    padding: 4rem 2rem;
+    margin: 3rem 0;
+    border-radius: var(--border-radius);
+    box-shadow: var(--shadow);
+    position: relative;
+    overflow: hidden;
+}
+
+.features-section::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: radial-gradient(circle at 10% 10%, rgba(255, 255, 255, 0.05) 0%, transparent 20%),
+                radial-gradient(circle at 90% 90%, rgba(255, 255, 255, 0.05) 0%, transparent 20%);
+    pointer-events: none;
+}
+
+.features-header {
+    text-align: center;
+    margin-bottom: 3rem;
+    max-width: 800px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.features-header h2 {
+    font-size: 2.2rem;
+    margin-bottom: 1rem;
+    color: #60a5fa; /* Light blue accent */
+    font-weight: 700;
+}
+
+.features-header p {
+    font-size: 1.1rem;
+    opacity: 0.9;
+    line-height: 1.6;
+    color: #e0f2fe;
+}
+
+.features-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 2rem;
+    margin-bottom: 2rem;
+}
+
+.feature-card {
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(10px);
+    padding: 2rem;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    transition: transform 0.3s ease, background 0.3s ease;
+    height: 100%;
+    cursor: pointer;
+}
+
+.feature-card:hover {
+    transform: translateY(-5px);
+    background: rgba(255, 255, 255, 0.15);
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+}
+
+.feature-card .card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 0;
+    transition: margin-bottom 0.3s ease;
+}
+
+.feature-card.expanded .card-header {
+    margin-bottom: 1rem;
+}
+
+.feature-card h3 {
+    font-size: 1.25rem;
+    margin-bottom: 0;
+    color: #ffffff;
+    font-weight: 600;
+    padding-right: 1rem;
+}
+
+.feature-card p {
+    font-size: 0.95rem;
+    line-height: 1.6;
+    color: #dbeafe;
+    max-height: 0;
+    overflow: hidden;
+    opacity: 0;
+    transition: all 0.3s ease-out;
+}
+
+.feature-card.expanded p {
+    max-height: 300px; /* Increased for larger content */
+    opacity: 1;
+}
+
+.feature-card code {
+    background: rgba(0, 0, 0, 0.3);
+    padding: 0.2rem 0.4rem;
+    border-radius: 4px;
+    font-family: monospace;
+    font-size: 0.9em;
+    color: #93c5fd;
+}
+
+.arrow-icon {
+    font-size: 0.8rem;
+    color: #93c5fd;
+    opacity: 0.7;
+    transition: transform 0.3s ease;
+}
+
+.feature-card.expanded .arrow-icon {
+    transform: rotate(180deg);
+}
+
+/* FAQ Card Specifics */
+.faq-card {
+    background: rgba(30, 58, 138, 0.4); /* Slightly darker/different tint */
+}
+
+.faq-card h3 {
+    font-size: 1.1rem;
+}
+
+@media (max-width: 768px) {
+    .features-section {
+        padding: 2rem 1rem;
+    }
+    
+    .features-header h2 {
+        font-size: 1.8rem;
+    }
 }
