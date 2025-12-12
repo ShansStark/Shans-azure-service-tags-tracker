@@ -123,8 +123,9 @@
                 <h1>
                     <span class="brand-text">Azure IP Ranges & Service Tags — Tracker</span>
                 </h1>
-                <p class="hero-subtitle">Continuous monitoring of Microsoft Azure Public Cloud IP range and Service Tag
-                    updates worldwide.</p>
+                <h2 class="hero-subtitle">
+                    Azure Service Tags Tracker is a free, serverless tool that monitors Azure Service Tag and IP range changes, highlights weekly diffs, and helps prevent firewall and policy breakages through automation.
+                </h2>
             </div>
             <div class="last-updated">
                 <span class="update-icon">🕐</span>
@@ -161,8 +162,7 @@
             <div id="dashboard" class="dashboard hidden">
                 <!-- Quick Stats Overview -->
                 <section class="stats-overview">
-                    <p class="analytics-instruction">👆 Click on any card below to explore service or region changes
-                        this week</p>
+                    <h3 style="text-align: center; margin-bottom: 1.5rem; color: var(--text-muted); font-size: 1rem; text-transform: uppercase; letter-spacing: 1px;">Live Azure Change Overview</h3>
                     <div class="stats-grid">
                         <article class="stat-card clickable-stat" onclick="dashboard.showIPRangesHistory()"
                             title="Click to see IP ranges history">
@@ -197,8 +197,8 @@
                 <!-- Global Search Section -->
                 <section class="search-section">
                     <div class="search-container">
-                        <h2 class="search-title">🔍 Global Search</h2>
-                        <p class="search-subtitle">Search for any service or region to view detailed changes</p>
+                        <h2 class="search-title">Explore Azure Changes</h2>
+                        <p class="search-subtitle">Search by service, region, or IP to see exactly what changed — and when.</p>
                         <div class="search-box">
                             <input type="text" id="globalSearch" class="search-input"
                                 placeholder="Type a service name, region, or IP address (e.g., Storage, East US, 20.150)..."
@@ -216,6 +216,41 @@
                             <span class="search-hint-item">💡 Try: <button class="search-example"
                                     onclick="dashboard.searchExample('20.172.90.116/30')">20.172.90.116/30</button></span>
                         </div>
+                        <p style="text-align: center; margin-top: 2rem; font-size: 0.9rem; color: var(--text-muted); opacity: 0.8; letter-spacing: 0.5px;">Designed for: Security teams · Network engineers · Cloud & platform teams</p>
+                    </div>
+                </section>
+
+                <!-- Value Proposition Section -->
+                <section class="features-section">
+                    <div class="features-header">
+                        <h2>How Azure IP Changes Are Tracked</h2>
+                        <p>The tracker continuously processes the official Microsoft Azure Service Tags dataset, generating weekly diffs and maintaining a searchable history of IP range and service changes. This allows teams to quickly review what changed, when it changed, and integrate those updates into security and automation workflows.</p>
+                    </div>
+
+                    <div class="features-grid">
+                        <article class="feature-card" onclick="this.classList.toggle('expanded')">
+                            <div class="card-header">
+                                <h3>Official Microsoft Data, Automatically Synced</h3>
+                                <span class="arrow-icon">▼</span>
+                            </div>
+                            <p>The platform pulls the official Azure Service Tags dataset every Monday at 00:00 UTC via GitHub Actions. Each run generates a current snapshot, weekly diffs, and timestamped history so you always know when IP ranges are added or retired.</p>
+                        </article>
+
+                        <article class="feature-card" onclick="this.classList.toggle('expanded')">
+                            <div class="card-header">
+                                <h3>Built for Security & Networking Teams</h3>
+                                <span class="arrow-icon">▼</span>
+                            </div>
+                            <p>Search by service, region, or IP address to quickly identify range changes and understand what changed and when. Detailed change sets can then be exported from the Change History for firewall and network automation.</p>
+                        </article>
+
+                        <article class="feature-card" onclick="this.classList.toggle('expanded')">
+                            <div class="card-header">
+                                <h3>API & Automation Friendly</h3>
+                                <span class="arrow-icon">▼</span>
+                            </div>
+                            <p>All datasets are published on GitHub Pages under <code>/data</code>. Automation tools can discover available updates, retrieve precise diffs from historical snapshots, or queue downloads using the manifest. Sample scripts for PowerShell, Python, and other languages are provided.</p>
+                        </article>
                     </div>
                 </section>
 
@@ -232,37 +267,10 @@
                     </div>
                 </section>
 
-                <!-- Value Proposition & FAQ Section -->
-                <section class="features-section">
+                <!-- FAQ Section -->
+                <section class="features-section faq-section">
                     <div class="features-header">
-                        <h2>Streamline Azure IP Tracking & Automation</h2>
-                        <p>Azure Service Tags Tracker is a free, serverless tool that automatically monitors Azure Service Tag and IP range changes. It highlights weekly diffs, helps prevent firewall and policy breakages, and provides JSON output for automation and alerts.</p>
-                    </div>
-
-                    <div class="features-grid">
-                        <article class="feature-card" onclick="this.classList.toggle('expanded')">
-                            <div class="card-header">
-                                <h3>Official Microsoft Data, Automatically Synced</h3>
-                                <span class="arrow-icon">▼</span>
-                            </div>
-                            <p>The platform pulls the official Azure Service Tags JSON every Monday at 00:00 UTC via GitHub Actions. Each run produces <code>current.json</code>, differential reports, and timestamped history so you always know when an IP range was added or retired.</p>
-                        </article>
-
-                        <article class="feature-card" onclick="this.classList.toggle('expanded')">
-                            <div class="card-header">
-                                <h3>Built for Security & Networking Teams</h3>
-                                <span class="arrow-icon">▼</span>
-                            </div>
-                            <p>Search for services like <strong>AzureStorage</strong>, regions such as <strong>East US</strong>, or specific <strong>IP addresses</strong> to easily identify range changes. Export change sets and sync results with firewall automation.</p>
-                        </article>
-
-                        <article class="feature-card" onclick="this.classList.toggle('expanded')">
-                            <div class="card-header">
-                                <h3>API & Automation Friendly</h3>
-                                <span class="arrow-icon">▼</span>
-                            </div>
-                            <p>Every dataset lives on GitHub Pages under <code>/data</code>. Tools can fetch <code>summary.json</code> to discover available dates, compare <code>/history/</code> snapshots for precise diffs, or read <code>manifest.json</code> to queue downloads. Sample scripts for PowerShell, Python, and more are provided.</p>
-                        </article>
+                        <h2>Frequently Asked Questions (FAQ)</h2>
                     </div>
 
                     <div class="features-grid">
@@ -279,7 +287,7 @@
                                 <h3>Can I monitor Azure IP changes without forking?</h3>
                                 <span class="arrow-icon">▼</span>
                             </div>
-                            <p>Yes. Point your scripts to <code>https://eliaquimbrandao.github.io/azure-service-tags-tracker/data/</code> and query the JSON endpoints directly. No API keys, rate limits, or authentication flows required.</p>
+                            <p>Yes. Point your scripts to <code>https://eliaquimbrandao.github.io/azure-service-tags-tracker/data/</code> and query the JSON endpoints directly. No API keys, rate limits, or authentication flows required. Check out our <a href="https://github.com/eliaquimbrandao/azure-service-tags-tracker/blob/main/examples/api-usage-examples.md" target="_blank" rel="noopener noreferrer" style="color: #93c5fd; text-decoration: underline;">API Usage Examples</a> for scripts in Python, PowerShell, and more.</p>
                         </article>
 
                         <article class="feature-card faq-card" onclick="this.classList.toggle('expanded')">
@@ -332,6 +340,11 @@
                 <h4>Open Source</h4>
                 <p><a href="https://github.com/eliaquimbrandao/azure-service-tags-watcher" target="_blank"
                         rel="noopener noreferrer">View Source Code</a></p>
+            </div>
+            <div class="footer-section">
+                <h4>Feedback</h4>
+                <p><a href="https://github.com/eliaquimbrandao/azure-service-tags-tracker/issues" target="_blank"
+                        rel="noopener noreferrer">Open an Issue</a></p>
             </div>
         </div>
         <div class="footer-bottom">

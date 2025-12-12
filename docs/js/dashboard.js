@@ -4468,6 +4468,28 @@ class AzureServiceTagsDashboard {
         // Store data for click handlers
         this.historicalSearchData = { services, regions, ips };
 
+        // Display region results
+        if (regions.length > 0) {
+            html += '<div class="search-category-header">🌍 Regions</div>';
+            regions.forEach((region, index) => {
+                const latestDate = region.occurrences[0].date;
+                const occurrenceCount = region.occurrences.length;
+
+                html += `
+                    <div class="search-result-item historical" data-type="region" data-index="${index}">
+                        <div class="search-result-info">
+                            <div class="search-result-name">${region.displayName}</div>
+                            <div class="search-result-meta">
+                                📊 ${region.totalChanges} change${region.totalChanges !== 1 ? 's' : ''} across ${occurrenceCount} date${occurrenceCount !== 1 ? 's' : ''}
+                                • Latest: ${this.formatDateShort(latestDate)}
+                            </div>
+                        </div>
+                        <span class="search-result-badge region">Region</span>
+                    </div>
+                `;
+            });
+        }
+
         // Display service results
         if (services.length > 0) {
             html += '<div class="search-category-header">🔧 Services</div>';
@@ -4488,28 +4510,6 @@ class AzureServiceTagsDashboard {
                             </div>
                         </div>
                         <span class="search-result-badge service">Service</span>
-                    </div>
-                `;
-            });
-        }
-
-        // Display region results
-        if (regions.length > 0) {
-            html += '<div class="search-category-header">🌍 Regions</div>';
-            regions.forEach((region, index) => {
-                const latestDate = region.occurrences[0].date;
-                const occurrenceCount = region.occurrences.length;
-
-                html += `
-                    <div class="search-result-item historical" data-type="region" data-index="${index}">
-                        <div class="search-result-info">
-                            <div class="search-result-name">${region.displayName}</div>
-                            <div class="search-result-meta">
-                                📊 ${region.totalChanges} change${region.totalChanges !== 1 ? 's' : ''} across ${occurrenceCount} date${occurrenceCount !== 1 ? 's' : ''}
-                                • Latest: ${this.formatDateShort(latestDate)}
-                            </div>
-                        </div>
-                        <span class="search-result-badge region">Region</span>
                     </div>
                 `;
             });
