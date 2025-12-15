@@ -1007,15 +1007,43 @@ class AzureServiceTagsDashboard {
                                 try {
                                     const changesData = await changesResponse.json();
                                     if (changesData.metadata && changesData.metadata.date_published) {
-                                        // Parse date explicitly: "10/09/2025" -> MM/DD/YYYY
                                         const dateStr = changesData.metadata.date_published;
-                                        const parts = dateStr.split('/');
-                                        if (parts.length === 3) {
-                                            const month = parseInt(parts[0], 10) - 1; // 0-indexed
-                                            const day = parseInt(parts[1], 10);
-                                            const year = parseInt(parts[2], 10);
-                                            // Use UTC to avoid timezone shifts
-                                            item.microsoftPublished = new Date(Date.UTC(year, month, day));
+                                        let parsedDate = null;
+
+                                        // Try MM/DD/YYYY (US format, common in Microsoft docs)
+                                        const partsSlash = dateStr.split('/');
+                                        if (partsSlash.length === 3) {
+                                            const month = parseInt(partsSlash[0], 10) - 1; // 0-indexed
+                                            const day = parseInt(partsSlash[1], 10);
+                                            const year = parseInt(partsSlash[2], 10);
+                                            if (!isNaN(month) && !isNaN(day) && !isNaN(year)) {
+                                                parsedDate = new Date(Date.UTC(year, month, day));
+                                            }
+                                        }
+
+                                        // Try YYYY-MM-DD (ISO format)
+                                        if (!parsedDate) {
+                                            const partsDash = dateStr.split('-');
+                                            if (partsDash.length === 3) {
+                                                const year = parseInt(partsDash[0], 10);
+                                                const month = parseInt(partsDash[1], 10) - 1;
+                                                const day = parseInt(partsDash[2], 10);
+                                                if (!isNaN(month) && !isNaN(day) && !isNaN(year)) {
+                                                    parsedDate = new Date(Date.UTC(year, month, day));
+                                                }
+                                            }
+                                        }
+
+                                        // Try standard Date parsing as fallback
+                                        if (!parsedDate) {
+                                            const timestamp = Date.parse(dateStr);
+                                            if (!isNaN(timestamp)) {
+                                                parsedDate = new Date(timestamp);
+                                            }
+                                        }
+
+                                        if (parsedDate) {
+                                            item.microsoftPublished = parsedDate;
                                         }
                                     }
                                 } catch (err) {
