@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Azure Service Tag Watcher - Dashboard Data Generator
+Azure Service Tag Tracker - Dashboard Data Generator
 Adapted for GitHub Actions + GitHub Pages deployment
 
 This script:
@@ -33,7 +33,7 @@ logging.basicConfig(
 AZURE_PUBLIC_IP_JSON_URL = "https://www.microsoft.com/en-us/download/confirmation.aspx?id=56519"
 MAX_RETRIES = 3
 RETRY_DELAY = 2
-USER_AGENT = "Azure-Service-Tags-Watcher/1.0"
+USER_AGENT = "Azure-Service-Tags-Tracker/1.0"
 
 def download_latest_json() -> Tuple[Dict, Dict]:
     """Download the latest Azure Service Tags JSON with retry logic.
@@ -423,17 +423,17 @@ def cleanup_old_files(keep_weeks: int = 12):
 def main():
     """Main execution function."""
     # Parse command line arguments
-    parser = argparse.ArgumentParser(description='Azure Service Tags & IP Ranges Watcher - Dashboard Data Generator')
+    parser = argparse.ArgumentParser(description='Azure Service Tags & IP Ranges Tracker - Dashboard Data Generator')
     parser.add_argument('--baseline', action='store_true', 
                        help='Setup initial baseline (no changes recorded)')
     args = parser.parse_args()
     
     try:
         if args.baseline:
-            logging.info("=== Azure Service Tags & IP Ranges Watcher - Baseline Setup ===")
+            logging.info("=== Azure Service Tags & IP Ranges Tracker - Baseline Setup ===")
             print("🎯 Setting up initial baseline")
         else:
-            logging.info("=== Azure Service Tags & IP Ranges Watcher Update ===")
+            logging.info("=== Azure Service Tags & IP Ranges Tracker Update ===")
         
         # Download latest data
         new_data, metadata = download_latest_json()

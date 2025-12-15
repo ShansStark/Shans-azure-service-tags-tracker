@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to the Azure Service Tags & IP Ranges Watcher project.
+All notable changes to the Azure Service Tags & IP Ranges Tracker project.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
@@ -30,7 +30,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   - Refactored IP search results to display as a clean vertical list instead of inline blocks.
   - Added highlighting for matched IP ranges.
 - **Documentation Corrections**
-  - Updated all repository URLs from `azure-service-tags-watcher` to `azure-service-tags-tracker`.
+  - Updated all repository URLs to `azure-service-tags-tracker`.
   - Corrected automation schedule time to **00:00 UTC** in `README.md` and `index.html`.
   - Fixed broken links in API usage examples.
 
@@ -350,8 +350,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## Project Information
 
-**Repository**: <https://github.com/eliaquimbrandao/azure-service-tags-watcher>  
-**Dashboard**: <https://eliaquimbrandao.github.io/azure-service-tags-watcher/>  
+**Repository**: <https://github.com/eliaquimbrandao/azure-service-tags-tracker>  
+**Dashboard**: <https://eliaquimbrandao.github.io/azure-service-tags-tracker/>  
 **License**: MIT  
 **Author**: Eliaquim Brandao
 

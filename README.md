@@ -41,7 +41,7 @@ Azure Service Tags Tracker is a free, serverless solution that continuously moni
 
 **Automatically tracks and visualizes changes** to Azure Service Tags weekly:
 
-- � **Analytics Dashboard**: Charts showing service volatility, regional infrastructure changes, and update timelines
+- 📊 **Analytics Dashboard**: Charts showing service volatility, regional infrastructure changes, and update timelines
 - 📅 **Change History**: Complete timeline with detailed IP-level changes per service and region
 - 🔍 **Smart Search**: Find services, regions, or specific IP addresses instantly
 - 📥 **Export Data**: Download filtered results as JSON for automation
@@ -75,7 +75,7 @@ cd azure-service-tags-tracker
 
 Done! Your dashboard will be live at: `https://yourusername.github.io/azure-service-tags-tracker`
 
-**Auto-updates**: Runs every **Monday 00:00 UTC** automatically
+**Auto-updates**: Runs every **Monday 07:00 UTC** automatically
 
 ---
 

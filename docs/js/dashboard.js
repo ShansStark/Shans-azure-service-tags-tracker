@@ -8,7 +8,7 @@ class AzureServiceTagsDashboard {
         this.currentData = null;
         this.summaryData = null;
         this.changesData = null;
-        this.regionsData = null; // Will be loaded from regions.json
+        this.regionDisplayMap = {}; // Will be loaded from regions.json
         this.filteredServices = [];
         this.activeServicesChart = null;
         this.regionalChart = null;
@@ -20,6 +20,11 @@ class AzureServiceTagsDashboard {
         this.servicesPage = 1;
         this.servicesContainer = null;
         this.recentChangesPage = 1;
+        this.cacheBust = Date.now();
+        this.includeNewServiceIPs = true;
+        this.servicePrefixLookup = {};
+        this.timelinePageSize = 5;
+        this.timelineVisibleCount = this.timelinePageSize;
 
         this.init();
     }
@@ -42,15 +47,15 @@ class AzureServiceTagsDashboard {
         try {
             const response = await fetch('data/regions.json');
             if (response.ok) {
-                this.regionsData = await response.json();
-                console.log('Regions data loaded:', Object.keys(this.regionsData).length, 'regions');
+                this.regionDisplayMap = await response.json();
+                console.log('Regions data loaded:', Object.keys(this.regionDisplayMap).length, 'regions');
             } else {
                 console.warn('Failed to load regions.json, using fallback');
-                this.regionsData = {};
+                this.regionDisplayMap = {};
             }
         } catch (error) {
             console.error('Error loading regions.json:', error);
-            this.regionsData = {};
+            this.regionDisplayMap = {};
         }
     }
 
@@ -83,11 +88,15 @@ class AzureServiceTagsDashboard {
             this.currentData = await currentResponse.json();
             this.summaryData = await summaryResponse.json();
             
-            if (regionsResponse.ok) {
-                this.regions = await regionsResponse.json();
+                if (regionsResponse.ok) {
+                    this.regionDisplayMap = await regionsResponse.json();
             } else {
                 console.warn('Failed to load regions.json, falling back to programmatic names');
+                    this.regionDisplayMap = this.regionDisplayMap || {};
             }
+
+            // Build prefix lookup for synthetic IP changes on new services
+            this.buildServicePrefixLookup();
 
             // Changes file might not exist on first run
             if (changesResponse.ok) {
@@ -104,16 +113,48 @@ class AzureServiceTagsDashboard {
         }
     }
 
+    /**
+     * Parse a YYYY-MM-DD string without shifting days across time zones.
+     * Anchors at noon UTC so local offsets do not roll the calendar backward/forward.
+     */
+    parseDateOnly(dateString) {
+        if (!dateString) return null;
+
+        const parts = dateString.split('-').map(Number);
+        if (parts.length === 3 && parts.every(n => !Number.isNaN(n))) {
+            const [year, month, day] = parts;
+            return new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
+        }
+
+        const parsed = Date.parse(dateString);
+        return Number.isNaN(parsed) ? null : new Date(parsed);
+    }
+
+    normalizeKey(value, fallback = 'global') {
+        if (!value) return fallback;
+        return value.toString().toLowerCase().replace(/[^a-z0-9]/g, '') || fallback;
+    }
+
+    getBaseRegionKey(regionRaw) {
+        const clean = this.normalizeKey(regionRaw, 'global');
+        const base = clean.replace(/\d+$/, '');
+        return base || clean;
+    }
+
+    fetchWithCacheBust(url) {
+        const separator = url.includes('?') ? '&' : '?';
+        return fetch(`${url}${separator}t=${this.cacheBust}`);
+    }
+
     getRegionDisplayName(programmaticName) {
         if (!programmaticName || programmaticName === '') {
             return 'Global';
         }
 
-        // Clean the programmatic name (remove any prefixes/suffixes that might exist)
-        const cleanName = programmaticName.toLowerCase().replace(/[^a-z]/g, '');
+            const cleanName = programmaticName.toLowerCase().replace(/[^a-z0-9]/g, '');
 
         // Try to get the display name from the loaded regions
-        const displayName = this.regions[cleanName];
+        const displayName = this.regionDisplayMap?.[cleanName];
 
         // If not found in mapping, format the programmatic name nicely
         if (!displayName) {
@@ -128,6 +169,21 @@ class AzureServiceTagsDashboard {
         }
 
         return displayName;
+    }
+
+    getRegionGroupDisplay(baseKey) {
+        const group = this.timelineRegionGroups?.get(baseKey);
+        if (group) {
+            const variants = Array.from(group.variants).sort();
+            if (variants.length > 1) {
+                return `${group.baseDisplay} (includes ${variants.join(', ')})`;
+            }
+            if (variants.length === 1) {
+                return variants[0];
+            }
+            return group.baseDisplay;
+        }
+        return this.getRegionDisplayName(baseKey);
     }
 
     async renderDashboard() {
@@ -255,7 +311,7 @@ class AzureServiceTagsDashboard {
         if (dataPointsEl || durationEl) {
             try {
                 // Load manifest to get actual data coverage
-                const manifestResponse = await fetch('data/changes/manifest.json');
+                const manifestResponse = await this.fetchWithCacheBust('data/changes/manifest.json');
                 const manifest = await manifestResponse.json();
 
                 // Exclude baseline (oldest date) from counts
@@ -272,11 +328,11 @@ class AzureServiceTagsDashboard {
                     if (dateRange && actualDataWeeks > 0) {
                         // Get the second oldest date (first actual change, not baseline)
                         const files = manifest.files || [];
-                        const sortedFiles = files.sort((a, b) => new Date(a.date) - new Date(b.date));
+                        const sortedFiles = files.sort((a, b) => this.parseDateOnly(a.date) - this.parseDateOnly(b.date));
 
                         // Skip the oldest (baseline) and use the second oldest as start
-                        const firstChangeDate = sortedFiles.length > 1 ? new Date(sortedFiles[1].date) : new Date(dateRange.oldest);
-                        const newestDate = new Date(dateRange.newest);
+                        const firstChangeDate = sortedFiles.length > 1 ? this.parseDateOnly(sortedFiles[1].date) : this.parseDateOnly(dateRange.oldest);
+                        const newestDate = this.parseDateOnly(dateRange.newest);
 
                         const daysDiff = Math.floor((newestDate - firstChangeDate) / (1000 * 60 * 60 * 24));
                         const weeksDiff = Math.max(1, Math.ceil(daysDiff / 7));
@@ -310,7 +366,7 @@ class AzureServiceTagsDashboard {
         if (!summaryEl) return;
 
         try {
-            const manifestResponse = await fetch('data/changes/manifest.json');
+            const manifestResponse = await this.fetchWithCacheBust('data/changes/manifest.json');
             const manifest = await manifestResponse.json();
             const changeFiles = manifest.files.filter(f => f.date !== manifest.date_range.oldest);
 
@@ -467,7 +523,7 @@ class AzureServiceTagsDashboard {
 
         try {
             // Load manifest to get list of all change files
-            const manifestResponse = await fetch('data/changes/manifest.json');
+            const manifestResponse = await this.fetchWithCacheBust('data/changes/manifest.json');
             if (!manifestResponse.ok) {
                 console.log('Manifest not found, falling back to known files');
                 // Fallback to known files if manifest doesn't exist
@@ -485,7 +541,7 @@ class AzureServiceTagsDashboard {
             // Load each historical change file (excluding baseline)
             for (const fileInfo of changeFiles) {
                 try {
-                    const response = await fetch(`data/changes/${fileInfo.filename}`);
+                    const response = await this.fetchWithCacheBust(`data/changes/${fileInfo.filename}`);
                     if (response.ok) {
                         const data = await response.json();
 
@@ -982,7 +1038,7 @@ class AzureServiceTagsDashboard {
 
         try {
             // Load all historical data files to get changeNumber timeline
-            const manifestResponse = await fetch('data/changes/manifest.json');
+            const manifestResponse = await this.fetchWithCacheBust('data/changes/manifest.json');
             const manifest = await manifestResponse.json();
 
             const timelineData = [];
@@ -990,8 +1046,8 @@ class AzureServiceTagsDashboard {
             // Load historical files with Microsoft metadata
             for (const fileInfo of manifest.files) {
                 try {
-                    const historyResponse = await fetch(`data/history/${fileInfo.date}.json`);
-                    const changesResponse = await fetch(`data/changes/${fileInfo.date}-changes.json`);
+                    const historyResponse = await this.fetchWithCacheBust(`data/history/${fileInfo.date}.json`);
+                    const changesResponse = await this.fetchWithCacheBust(`data/changes/${fileInfo.date}-changes.json`);
 
                     if (historyResponse.ok) {
                         const historyData = await historyResponse.json();
@@ -999,7 +1055,7 @@ class AzureServiceTagsDashboard {
                             const item = {
                                 date: fileInfo.date,
                                 changeNumber: parseInt(historyData.changeNumber),
-                                collectionDate: new Date(fileInfo.date)
+                                collectionDate: this.parseDateOnly(fileInfo.date)
                             };
 
                             // Try to get Microsoft's publish date from changes file
@@ -1134,7 +1190,7 @@ class AzureServiceTagsDashboard {
             // Sort dates and create labels
             const sortedDates = Array.from(allDates).sort();
             const labels = sortedDates.map(dateStr => {
-                const date = new Date(dateStr);
+                const date = this.parseDateOnly(dateStr);
                 return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
             });
 
@@ -1290,7 +1346,7 @@ class AzureServiceTagsDashboard {
 
         try {
             // Load all historical changes to track AzureCloud regions over time
-            const manifestResponse = await fetch('data/changes/manifest.json');
+            const manifestResponse = await this.fetchWithCacheBust('data/changes/manifest.json');
             const manifest = await manifestResponse.json();
 
             // Exclude baseline (oldest date)
@@ -1306,7 +1362,7 @@ class AzureServiceTagsDashboard {
 
             for (const fileInfo of changeFiles) {
                 try {
-                    const changeResponse = await fetch(`data/changes/${fileInfo.filename}`);
+                    const changeResponse = await this.fetchWithCacheBust(`data/changes/${fileInfo.filename}`);
                     const changeData = await changeResponse.json();
 
                     (changeData.changes || []).forEach(change => {
@@ -1570,7 +1626,7 @@ class AzureServiceTagsDashboard {
 
         try {
             // Load all historical changes
-            const manifestResponse = await fetch('data/changes/manifest.json');
+            const manifestResponse = await this.fetchWithCacheBust('data/changes/manifest.json');
             const manifest = await manifestResponse.json();
 
             // Exclude baseline
@@ -1585,7 +1641,7 @@ class AzureServiceTagsDashboard {
 
             for (const fileInfo of changeFiles) {
                 try {
-                    const changeResponse = await fetch(`data/changes/${fileInfo.filename}`);
+                    const changeResponse = await this.fetchWithCacheBust(`data/changes/${fileInfo.filename}`);
                     const changeData = await changeResponse.json();
 
                     let addedIPs = 0;
@@ -1607,7 +1663,7 @@ class AzureServiceTagsDashboard {
             }
 
             // Sort by date
-            weeklyData.sort((a, b) => new Date(a.date) - new Date(b.date));
+            weeklyData.sort((a, b) => this.parseDateOnly(a.date) - this.parseDateOnly(b.date));
 
             // Limit to last 24 weeks (approximately 6 months) for readability
             const maxWeeksToShow = 24;
@@ -1616,7 +1672,7 @@ class AzureServiceTagsDashboard {
                 : weeklyData;
 
             const labels = limitedData.map(item => {
-                const date = new Date(item.date);
+                const date = this.parseDateOnly(item.date);
                 return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
             });
 
@@ -1701,7 +1757,7 @@ class AzureServiceTagsDashboard {
                             callbacks: {
                                 title: (items) => {
                                     const index = items[0].dataIndex;
-                                    const date = new Date(limitedData[index].date);
+                                    const date = this.parseDateOnly(limitedData[index].date);
                                     return date.toLocaleDateString('en-US', {
                                         year: 'numeric',
                                         month: 'long',
@@ -1748,14 +1804,14 @@ class AzureServiceTagsDashboard {
 
         try {
             // Load all historical changes to get regional distribution
-            const manifestResponse = await fetch('data/changes/manifest.json');
+            const manifestResponse = await this.fetchWithCacheBust('data/changes/manifest.json');
             const manifest = await manifestResponse.json();
 
             const regionalCounts = {};
 
             for (const fileInfo of manifest.files) {
                 try {
-                    const changeResponse = await fetch(`data/changes/${fileInfo.filename}`);
+                    const changeResponse = await this.fetchWithCacheBust(`data/changes/${fileInfo.filename}`);
                     const changeData = await changeResponse.json();
 
                     (changeData.changes || []).forEach(change => {
@@ -2003,7 +2059,7 @@ class AzureServiceTagsDashboard {
 
         // Load detailed changes for this region
         try {
-            const manifestResponse = await fetch('data/changes/manifest.json');
+            const manifestResponse = await this.fetchWithCacheBust('data/changes/manifest.json');
             const manifest = await manifestResponse.json();
 
             // Exclude baseline (oldest date)
@@ -2018,7 +2074,7 @@ class AzureServiceTagsDashboard {
 
             for (const fileInfo of filesToProcess) {
                 try {
-                    const changeResponse = await fetch(`data/changes/${fileInfo.filename}`);
+                    const changeResponse = await this.fetchWithCacheBust(`data/changes/${fileInfo.filename}`);
                     const changeData = await changeResponse.json();
 
                     (changeData.changes || []).forEach(change => {
@@ -2215,7 +2271,7 @@ class AzureServiceTagsDashboard {
         const { date, filename, changes, metadata = {} } = weekData;
 
         // Format the date
-        const changeDate = new Date(date);
+        const changeDate = this.parseDateOnly(date) || new Date(date);
         const formattedDate = changeDate.toLocaleDateString('en-US', {
             weekday: 'long',
             year: 'numeric',
@@ -2456,12 +2512,14 @@ class AzureServiceTagsDashboard {
             this.allTimelineData = timelineItems;
             this.filteredTimelineData = timelineItems;
 
+            // Reset pagination for initial render
+            this.timelineVisibleCount = this.timelinePageSize;
+
             // Initialize filters with the data
             this.initializeHistoryFilters(timelineItems);
 
-            // Render timeline
-            const timelineHtml = timelineItems.map(item => this.renderTimelineItem(item)).join('');
-            timelineContainer.innerHTML = timelineHtml;
+            // Render timeline with pagination applied
+            this.renderFilteredTimeline();
 
         } catch (error) {
             console.error('Error loading change history:', error);
@@ -2832,9 +2890,9 @@ class AzureServiceTagsDashboard {
         modal.querySelector('.timeline-navigation').style.display = 'none';
         modal.querySelector('.timeline-detail-view').style.display = 'block';
 
-        // Group changes by region
+        // Group changes by region (collapse numbered variants)
         const changesByRegion = this.groupChangesByRegion(ipChanges);
-        const regions = Object.keys(changesByRegion).sort();
+        const regions = Object.keys(changesByRegion).sort((a, b) => changesByRegion[a].baseDisplay.localeCompare(changesByRegion[b].baseDisplay));
 
         const container = modal.querySelector('#timelineDetailContainer');
         container.innerHTML = `
@@ -2846,11 +2904,12 @@ class AzureServiceTagsDashboard {
                     <input type="text" id="timelineRegionSearch" placeholder="🔍 Search regions..." />
                 </div>
                 <div class="region-items">
-                    ${regions.map(region => {
-            const displayName = region === 'Global' ? '🌐 Global Services' : this.getRegionDisplayName(region);
-            const count = changesByRegion[region].length;
+                    ${regions.map(regionKey => {
+            const group = changesByRegion[regionKey];
+            const displayName = this.formatRegionGroupLabel(group);
+            const count = group.changes.length;
             return `
-                            <div class="region-item" data-region="${region}" data-display-name="${displayName.toLowerCase()}">
+                            <div class="region-item" data-region="${regionKey}" data-display-name="${displayName.toLowerCase()}">
                                 <div class="region-name">${displayName}</div>
                                 <div class="region-count">${count} service${count !== 1 ? 's' : ''} changed</div>
                             </div>
@@ -2870,9 +2929,10 @@ class AzureServiceTagsDashboard {
         const regionItems = container.querySelectorAll('.region-item');
         regionItems.forEach(item => {
             item.addEventListener('click', () => {
-                const region = item.dataset.region;
-                const regionChanges = changesByRegion[region];
-                this.showTimelineServicesForRegion(region, regionChanges, container, date);
+                const regionKey = item.dataset.region;
+                const regionChanges = changesByRegion[regionKey].changes;
+                const regionLabel = this.formatRegionGroupLabel(changesByRegion[regionKey]);
+                this.showTimelineServicesForRegion(regionLabel, regionChanges, container, date);
             });
         });
 
@@ -2906,8 +2966,8 @@ class AzureServiceTagsDashboard {
         }
     }
 
-    showTimelineServicesForRegion(region, regionChanges, container, date) {
-        const displayName = region === 'Global' ? '🌐 Global Services' : this.getRegionDisplayName(region);
+    showTimelineServicesForRegion(regionLabel, regionChanges, container, date) {
+        const displayName = regionLabel || 'Region';
 
         // Hide region list and show services
         container.querySelector('.region-list-container').style.display = 'none';
@@ -3138,6 +3198,15 @@ class AzureServiceTagsDashboard {
                 }
             }
         });
+
+        // Load more history
+        const loadMoreBtn = document.getElementById('loadMoreTimeline');
+        if (loadMoreBtn) {
+            loadMoreBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                this.loadMoreTimeline();
+            });
+        }
     }
 
     showError(error) {
@@ -3421,9 +3490,9 @@ class AzureServiceTagsDashboard {
         const modal = document.createElement('div');
         modal.className = 'changes-modal-overlay';
 
-        // Group changes by region for better organization
+        // Group changes by region for better organization (collapse numbered variants)
         const changesByRegion = this.groupChangesByRegion(ipChanges);
-        const regions = Object.keys(changesByRegion).sort();
+        const regions = Object.keys(changesByRegion).sort((a, b) => changesByRegion[a].baseDisplay.localeCompare(changesByRegion[b].baseDisplay));
 
         // Generate regional navigation without default selection
         const regionNavHtml = regions.length > 1 ?
@@ -3433,10 +3502,11 @@ class AzureServiceTagsDashboard {
                 </div>
                 <div class="region-buttons">
                     <button class="region-filter" onclick="dashboard.filterIPChangesByRegion('all')">All Regions (${ipChanges.length})</button>
-                    ${regions.map(region => {
-                const displayName = this.getRegionDisplayName(region);
-                const count = changesByRegion[region].length;
-                return `<button class="region-filter" onclick="dashboard.filterIPChangesByRegion('${region}')">${displayName} (${count})</button>`;
+                    ${regions.map(regionKey => {
+                const group = changesByRegion[regionKey];
+                const displayName = this.formatRegionGroupLabel(group);
+                const count = group.changes.length;
+                return `<button class="region-filter" onclick="dashboard.filterIPChangesByRegion('${regionKey}')">${displayName} (${count})</button>`;
             }).join('')}
                 </div>
             </div>` : '';
@@ -3492,9 +3562,9 @@ class AzureServiceTagsDashboard {
         const modal = document.createElement('div');
         modal.className = 'changes-modal-overlay';
 
-        // Group changes by region
+        // Group changes by region (collapse numbered variants)
         const changesByRegion = this.groupChangesByRegion(ipChanges);
-        const regions = Object.keys(changesByRegion).sort();
+        const regions = Object.keys(changesByRegion).sort((a, b) => changesByRegion[a].baseDisplay.localeCompare(changesByRegion[b].baseDisplay));
 
         // Calculate stats
         const totalRegions = regions.length;
@@ -3519,11 +3589,12 @@ class AzureServiceTagsDashboard {
                             <input type="text" id="regionSearchInput" placeholder="🔍 Search regions..." />
                         </div>
                         <div class="region-items">
-                            ${regions.map(region => {
-            const displayName = region === 'Global' ? '🌐 Global Services' : this.getRegionDisplayName(region);
-            const count = changesByRegion[region].length;
+                            ${regions.map(regionKey => {
+            const group = changesByRegion[regionKey];
+            const displayName = this.formatRegionGroupLabel(group);
+            const count = group.changes.length;
             return `
-                                    <div class="region-item" data-region="${region}" data-display-name="${displayName.toLowerCase()}">
+                                    <div class="region-item" data-region="${regionKey}" data-display-name="${displayName.toLowerCase()}">
                                         <div class="region-name">${displayName}</div>
                                         <div class="region-count">${count} service${count !== 1 ? 's' : ''} changed</div>
                                     </div>
@@ -3571,9 +3642,11 @@ class AzureServiceTagsDashboard {
         const regionItems = modal.querySelectorAll('.region-item');
         regionItems.forEach(item => {
             item.addEventListener('click', () => {
-                const region = item.dataset.region;
-                const regionChanges = changesByRegion[region];
-                this.showServicesForRegion(region, regionChanges, modal);
+                const regionKey = item.dataset.region;
+                const regionGroup = changesByRegion[regionKey];
+                const regionChanges = regionGroup.changes;
+                const regionLabel = this.formatRegionGroupLabel(regionGroup);
+                this.showServicesForRegion(regionLabel, regionChanges, modal);
             });
         });
 
@@ -3607,8 +3680,8 @@ class AzureServiceTagsDashboard {
         }
     }
 
-    showServicesForRegion(region, regionChanges, modal) {
-        const displayName = region === 'Global' ? '🌐 Global Services' : this.getRegionDisplayName(region);
+    showServicesForRegion(regionLabel, regionChanges, modal) {
+        const displayName = regionLabel || 'Region';
 
         // Hide region list and show services
         modal.querySelector('.region-list').style.display = 'none';
@@ -3648,13 +3721,107 @@ class AzureServiceTagsDashboard {
     groupChangesByRegion(changes) {
         const groups = {};
         changes.forEach(change => {
-            const region = change.region || 'Global';
-            if (!groups[region]) {
-                groups[region] = [];
+            const regionRaw = change.region || 'Global';
+            const baseKey = this.getBaseRegionKey(regionRaw);
+            const displayName = regionRaw === 'Global' ? 'Global' : this.getRegionDisplayName(regionRaw);
+            const baseDisplay = displayName === 'Global' ? 'Global' : (displayName.replace(/\s+\d+$/, '').trim() || displayName);
+
+            if (!groups[baseKey]) {
+                groups[baseKey] = {
+                    baseKey,
+                    baseDisplay,
+                    variants: new Set(),
+                    changes: []
+                };
             }
-            groups[region].push(change);
+
+            groups[baseKey].changes.push(change);
+            groups[baseKey].variants.add(displayName);
+        });
+
+        // Enrich variants with known regions (so East US shows East US 2/3 even if not in this change set)
+        Object.entries(this.regionDisplayMap || {}).forEach(([key, value]) => {
+            const baseKey = this.getBaseRegionKey(key);
+            if (groups[baseKey]) {
+                groups[baseKey].variants.add(value);
+            }
         });
         return groups;
+    }
+
+    formatRegionGroupLabel(group) {
+        if (!group) return 'Region';
+        const variants = Array.from(group.variants || []).sort();
+        if (variants.length > 1) {
+            return `${group.baseDisplay} (includes ${variants.join(', ')})`;
+        }
+        if (variants.length === 1) {
+            return variants[0];
+        }
+        return group.baseDisplay || 'Region';
+    }
+
+    deriveRegionCode(change) {
+        if (change && change.region) return change.region;
+        if (change && change.service && change.service.includes('.')) {
+            const parts = change.service.split('.');
+            return parts[parts.length - 1];
+        }
+        return '';
+    }
+
+    // Case-insensitive whole-token-ish match: avoids matching "eastus3" inside "southeastus3"
+    matchesSearchTerm(text, term) {
+        if (!text || !term) return false;
+        const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const regex = new RegExp(`(^|[^a-z0-9])${escaped}(?=[^a-z0-9]|$)`, 'i');
+        return regex.test(text);
+    }
+
+    buildServicePrefixLookup() {
+        this.servicePrefixLookup = {};
+        const values = this.currentData?.values || [];
+        values.forEach(entry => {
+            const name = entry?.name || entry?.id;
+            const prefixes = entry?.properties?.addressPrefixes || [];
+            const region = entry?.properties?.region || '';
+            if (name && prefixes.length) {
+                this.servicePrefixLookup[name.toLowerCase()] = { prefixes, region };
+            }
+        });
+    }
+
+    getServiceInfo(serviceName) {
+        if (!serviceName) return null;
+        return this.servicePrefixLookup?.[serviceName.toLowerCase()] || null;
+    }
+
+    createSyntheticIPChange(change) {
+        if (!this.includeNewServiceIPs) return null;
+        const info = this.getServiceInfo(change.service);
+        if (!info || !info.prefixes || info.prefixes.length === 0) return null;
+        const regionCode = change.region || info.region || this.deriveRegionCode(change) || 'global';
+        return {
+            ...change,
+            type: 'ip_changes',
+            added_prefixes: info.prefixes,
+            removed_prefixes: [],
+            added_count: info.prefixes.length,
+            removed_count: 0,
+            region: regionCode,
+            synthetic_new_service: true
+        };
+    }
+
+    normalizeChangesForIP(changes) {
+        return (changes || []).flatMap(change => {
+            if (change.type === 'ip_changes') return [change];
+            if (change.type === 'service_added') {
+                const synthetic = this.createSyntheticIPChange(change);
+                return synthetic ? [synthetic] : [];
+            }
+            return [];
+        });
     }
 
     filterIPChangesByRegion(selectedRegion) {
@@ -3677,7 +3844,7 @@ class AzureServiceTagsDashboard {
         if (selectedRegion === 'all') {
             changesToShow = modal.allChanges;
         } else {
-            changesToShow = modal.changesByRegion[selectedRegion] || [];
+            changesToShow = modal.changesByRegion[selectedRegion]?.changes || [];
         }
 
         // Show loading state briefly for better UX
@@ -3720,7 +3887,7 @@ class AzureServiceTagsDashboard {
             if (!hasChangesThisWeek) {
                 // Load manifest to find the last week with actual changes
                 try {
-                    const manifestResponse = await fetch('data/changes/manifest.json');
+                    const manifestResponse = await this.fetchWithCacheBust('data/changes/manifest.json');
                     const manifest = await manifestResponse.json();
 
                     // Sort files by date (newest first)
@@ -3729,7 +3896,7 @@ class AzureServiceTagsDashboard {
 
                     // Look through previous weeks to find the last one with changes
                     for (const file of sortedFiles) {
-                        const fileResponse = await fetch(`data/changes/${file.filename}`);
+                        const fileResponse = await this.fetchWithCacheBust(`data/changes/${file.filename}`);
                         const fileData = await fileResponse.json();
 
                         // Calculate IP changes for this week
@@ -3958,8 +4125,12 @@ class AzureServiceTagsDashboard {
     }
 
     renderIPChangesList(changes, region) {
+        const groupLabel = (region && region !== 'all' && this.currentIPModal?.changesByRegion?.[region])
+            ? this.formatRegionGroupLabel(this.currentIPModal.changesByRegion[region])
+            : (region && region !== 'all' ? this.getRegionDisplayName(region) : '');
+
         if (changes.length === 0) {
-            return `<div class="no-changes">No IP changes found${region !== 'all' ? ` in ${this.getRegionDisplayName(region)}` : ''}.</div>`;
+            return `<div class="no-changes">No IP changes found${region !== 'all' ? ` in ${groupLabel}` : ''}.</div>`;
         }
 
         const displayLimit = 30;
@@ -3975,7 +4146,7 @@ class AzureServiceTagsDashboard {
             </div>
             ${changes.length > displayLimit ?
                 `<div class="changes-footer">
-                    <p><strong>Showing ${displayLimit} of ${changes.length} changes${region !== 'all' ? ` in ${this.getRegionDisplayName(region)}` : ''}</strong></p>
+                    <p><strong>Showing ${displayLimit} of ${changes.length} changes${region !== 'all' ? ` in ${groupLabel}` : ''}</strong></p>
                     <a href="./data/changes/latest-changes.json" target="_blank" class="view-all-link">📄 View complete data file</a>
                 </div>` : ''
             }
@@ -4277,58 +4448,30 @@ class AzureServiceTagsDashboard {
             // Load all historical changes from manifest
             const allChanges = await this.loadAllHistoricalChanges();
 
-            // Search in services
             const serviceMatches = new Map();
-
-            allChanges.forEach(({ date, changes }) => {
-                changes.forEach(change => {
-                    const serviceName = change.service || '';
-                    if (serviceName.toLowerCase().includes(queryLower)) {
-                        if (!serviceMatches.has(serviceName)) {
-                            serviceMatches.set(serviceName, {
-                                type: 'service',
-                                name: serviceName,
-                                occurrences: [],
-                                totalChanges: 0,
-                                totalIPAdded: 0,
-                                totalIPRemoved: 0
-                            });
-                        }
-                        const match = serviceMatches.get(serviceName);
-                        match.occurrences.push({
-                            date: date,
-                            ipAdded: change.added_count || 0,
-                            ipRemoved: change.removed_count || 0,
-                            change: change
-                        });
-                        match.totalChanges++;
-                        match.totalIPAdded += (change.added_count || 0);
-                        match.totalIPRemoved += (change.removed_count || 0);
-                    }
-                });
-            });
-
-            // Search in regions
             const regionMatches = new Map();
-            // Search in IPs
             const ipMatches = new Map();
 
             allChanges.forEach(({ date, changes }) => {
                 changes.forEach(change => {
-                    // Service Search
+                    // Service Search (normalize key to merge variants)
                     const serviceName = change.service || '';
+                    const serviceKey = this.normalizeKey(serviceName, 'unknown');
                     if (serviceName.toLowerCase().includes(queryLower)) {
-                        if (!serviceMatches.has(serviceName)) {
-                            serviceMatches.set(serviceName, {
+                        if (!serviceMatches.has(serviceKey)) {
+                            serviceMatches.set(serviceKey, {
                                 type: 'service',
                                 name: serviceName,
+                                key: serviceKey,
                                 occurrences: [],
                                 totalChanges: 0,
                                 totalIPAdded: 0,
                                 totalIPRemoved: 0
                             });
                         }
-                        const match = serviceMatches.get(serviceName);
+                        const match = serviceMatches.get(serviceKey);
+                        // Keep the prettiest name (first occurrence)
+                        if (!match.name && serviceName) match.name = serviceName;
                         match.occurrences.push({
                             date: date,
                             ipAdded: change.added_count || 0,
@@ -4340,33 +4483,39 @@ class AzureServiceTagsDashboard {
                         match.totalIPRemoved += (change.removed_count || 0);
                     }
 
-                    // Region Search
-                    const region = change.region || '';
-                    const displayName = region ? this.getRegionDisplayName(region) : '🌐 Global';
+                    // Region Search (aggregate normalized regions)
+                    const regionRaw = change.region || '';
+                    const regionKey = this.normalizeKey(regionRaw, 'global');
+                    const displayName = regionRaw ? this.getRegionDisplayName(regionRaw) : '🌐 Global';
 
-                    if (region.toLowerCase().includes(queryLower) ||
+                    if (regionRaw.toLowerCase().includes(queryLower) ||
                         displayName.toLowerCase().includes(queryLower)) {
-                        if (!regionMatches.has(region)) {
-                            regionMatches.set(region, {
+                        if (!regionMatches.has(regionKey)) {
+                            regionMatches.set(regionKey, {
                                 type: 'region',
-                                name: region,
+                                name: regionRaw,
+                                key: regionKey,
                                 displayName: displayName,
+                                baseKey: this.getBaseRegionKey(regionRaw),
+                                variants: new Set(),
                                 occurrences: [],
                                 totalChanges: 0
                             });
                         }
-                        const match = regionMatches.get(region);
+                        const match = regionMatches.get(regionKey);
+                        // Keep canonical display name
+                        if (!match.displayName && displayName) match.displayName = displayName;
+                        match.variants.add(displayName);
                         match.occurrences.push({
                             date: date,
-                            change: change
+                            change: change,
+                            regionRaw
                         });
                         match.totalChanges++;
                     }
 
-                    // IP Search
-                    // Only search IPs if query looks like an IP and has at least 2 segments and a trailing dot (e.g. "51.145.")
+                    // IP Search (aggregate by service+region key)
                     const isPotentialIP = /^[\d\.:/]+$/.test(query);
-                    // Check for at least 2 dots (meaning at least "x.y.")
                     const dotCount = (query.match(/\./g) || []).length;
                     const hasEnoughSegments = dotCount >= 2;
                     
@@ -4378,7 +4527,9 @@ class AzureServiceTagsDashboard {
                         const matchingPrefixes = allPrefixes.filter(prefix => prefix.includes(query));
                         
                         if (matchingPrefixes.length > 0) {
-                            const key = `${change.service}-${change.region || 'global'}`;
+                            const regionKeyIP = this.normalizeKey(change.region || '', 'global');
+                            const serviceKeyIP = this.normalizeKey(change.service || '', 'unknown');
+                            const key = `${serviceKeyIP}-${regionKeyIP}`;
                             if (!ipMatches.has(key)) {
                                 ipMatches.set(key, {
                                     type: 'ip',
@@ -4401,10 +4552,44 @@ class AzureServiceTagsDashboard {
                 });
             });
 
-            // Convert Maps to Arrays
-            const services = Array.from(serviceMatches.values());
-            const regions = Array.from(regionMatches.values());
-            const ips = Array.from(ipMatches.values());
+            // Convert Maps to Arrays and sort occurrences by date desc for accurate "Latest"
+            const sortByDateDesc = (a, b) => (this.parseDateOnly(b.date) || 0) - (this.parseDateOnly(a.date) || 0);
+
+            const services = Array.from(serviceMatches.values()).map(item => {
+                item.occurrences.sort(sortByDateDesc);
+                return item;
+            });
+
+            const regions = (() => {
+                const consolidated = new Map();
+                Array.from(regionMatches.values()).forEach(item => {
+                    const baseKey = item.baseKey || this.getBaseRegionKey(item.name || '');
+                    if (!consolidated.has(baseKey)) {
+                        consolidated.set(baseKey, {
+                            ...item,
+                            baseKey,
+                            occurrences: [...item.occurrences],
+                            totalChanges: item.totalChanges || item.occurrences.length,
+                            variants: new Set(item.variants || [])
+                        });
+                    } else {
+                        const existing = consolidated.get(baseKey);
+                        existing.occurrences.push(...item.occurrences);
+                        existing.totalChanges += item.totalChanges || item.occurrences.length;
+                        (item.variants || []).forEach ? item.variants.forEach(v => existing.variants.add(v)) : null;
+                        if (!existing.displayName && item.displayName) existing.displayName = item.displayName;
+                    }
+                });
+                return Array.from(consolidated.values()).map(item => {
+                    item.occurrences.sort(sortByDateDesc);
+                    return item;
+                });
+            })();
+
+            const ips = Array.from(ipMatches.values()).map(item => {
+                item.occurrences.sort(sortByDateDesc);
+                return item;
+            });
 
             // Display results
             this.displayHistoricalSearchResults(services, regions, ips, query);
@@ -4425,8 +4610,7 @@ class AzureServiceTagsDashboard {
 
     async loadAllHistoricalChanges() {
         // Load manifest to get all change files
-        const timestamp = new Date().getTime();
-        const manifestResponse = await fetch(`./data/changes/manifest.json?t=${timestamp}`);
+        const manifestResponse = await this.fetchWithCacheBust('data/changes/manifest.json');
 
         if (!manifestResponse.ok) {
             throw new Error('Could not load change history manifest');
@@ -4457,7 +4641,7 @@ class AzureServiceTagsDashboard {
 
         for (const fileInfo of changeFiles) {
             try {
-                const response = await fetch(`./data/changes/${fileInfo.filename}?t=${timestamp}`);
+                const response = await this.fetchWithCacheBust(`data/changes/${fileInfo.filename}`);
                 if (response.ok) {
                     const data = await response.json();
                     allChanges.push({
@@ -4500,8 +4684,10 @@ class AzureServiceTagsDashboard {
         if (regions.length > 0) {
             html += '<div class="search-category-header">🌍 Regions</div>';
             regions.forEach((region, index) => {
-                const latestDate = region.occurrences[0].date;
                 const occurrenceCount = region.occurrences.length;
+                const latestDate = region.occurrences[0]?.date;
+                const variants = Array.from(region.variants || []);
+                const variantText = variants.length > 1 ? `Includes: ${variants.join(', ')}` : '';
 
                 html += `
                     <div class="search-result-item historical" data-type="region" data-index="${index}">
@@ -4510,6 +4696,7 @@ class AzureServiceTagsDashboard {
                             <div class="search-result-meta">
                                 📊 ${region.totalChanges} change${region.totalChanges !== 1 ? 's' : ''} across ${occurrenceCount} date${occurrenceCount !== 1 ? 's' : ''}
                                 • Latest: ${this.formatDateShort(latestDate)}
+                                ${variantText ? `<br><span class="search-variant">${variantText}</span>` : ''}
                             </div>
                         </div>
                         <span class="search-result-badge region">Region</span>
@@ -4522,8 +4709,8 @@ class AzureServiceTagsDashboard {
         if (services.length > 0) {
             html += '<div class="search-category-header">🔧 Services</div>';
             services.forEach((service, index) => {
-                const latestDate = service.occurrences[0].date;
                 const occurrenceCount = service.occurrences.length;
+                const latestDate = service.occurrences[0]?.date;
 
                 html += `
                     <div class="search-result-item historical" data-type="service" data-index="${index}">
@@ -4632,7 +4819,7 @@ class AzureServiceTagsDashboard {
             document.body.appendChild(modal);
 
             // Load all historical changes for this service
-            const manifestResponse = await fetch('data/changes/manifest.json');
+            const manifestResponse = await this.fetchWithCacheBust('data/changes/manifest.json');
             if (!manifestResponse.ok) {
                 throw new Error('Could not load manifest');
             }
@@ -4648,7 +4835,7 @@ class AzureServiceTagsDashboard {
             // Load each file and find changes for this service
             for (const fileInfo of changeFiles) {
                 try {
-                    const response = await fetch(`data/changes/${fileInfo.filename}`);
+                    const response = await this.fetchWithCacheBust(`data/changes/${fileInfo.filename}`);
                     if (response.ok) {
                         const data = await response.json();
                         const serviceChanges = (data.changes || []).filter(c => c.service === serviceName);
@@ -5023,12 +5210,13 @@ class AzureServiceTagsDashboard {
 
     showRegionDetailsFromSearch(regionName) {
         const changes = this.changesData.changes || [];
-        const regionChanges = changes.filter(change => change.region === regionName);
+        const baseKey = this.getBaseRegionKey(regionName);
+        const grouped = this.groupChangesByRegion(changes);
+        const targetGroup = grouped[baseKey];
+        const regionChanges = targetGroup ? targetGroup.changes : changes.filter(change => this.getBaseRegionKey(change.region) === baseKey);
 
         if (regionChanges.length > 0) {
-            const displayName = this.getRegionDisplayName(regionName);
-            // Use showChangesModal to directly show the services and IP changes for this region
-            // Pass 'region-specific' to avoid showing the search bar since user already searched
+            const displayName = targetGroup ? this.formatRegionGroupLabel(targetGroup) : this.getRegionDisplayName(regionName);
             this.showChangesModal(`🗺️ ${displayName} - Changes This Week`, regionChanges, 'region-specific');
         }
 
@@ -5081,8 +5269,8 @@ class AzureServiceTagsDashboard {
     initializeHistoryFilters(allData) {
         console.log('🔧 initializeHistoryFilters called with', allData.length, 'items');
 
-        // Extract unique regions from the loaded timeline data
-        const regions = new Set();
+        // Extract and group regions (merge numbered variants under one entry)
+        const regionGroups = new Map();
         const dates = [];
 
         allData.forEach((item, index) => {
@@ -5100,17 +5288,50 @@ class AzureServiceTagsDashboard {
             if (item.changes && Array.isArray(item.changes)) {
                 item.changes.forEach(change => {
                     if (change.region && change.region.trim() !== '') {
-                        regions.add(change.region);
-                        if (regions.size <= 5) {
-                            console.log('  → Found region:', change.region);
+                        const baseKey = this.getBaseRegionKey(change.region);
+                        const displayName = this.getRegionDisplayName(change.region);
+                        const baseDisplay = displayName.replace(/\s+\d+$/, '').trim() || displayName;
+
+                        if (!regionGroups.has(baseKey)) {
+                            regionGroups.set(baseKey, {
+                                baseKey,
+                                baseDisplay,
+                                variants: new Set()
+                            });
+                        }
+
+                        const group = regionGroups.get(baseKey);
+                        group.variants.add(displayName);
+
+                        if (regionGroups.size <= 5) {
+                            console.log('  → Found region variant:', displayName, '→ base', baseDisplay);
                         }
                     }
                 });
             }
         });
 
-        console.log(`✅ Found ${regions.size} unique regions in timeline data`);
-        console.log('Regions:', Array.from(regions).slice(0, 10));
+        // Enrich with known region mappings so numbered variants appear even if not in this subset
+        Object.entries(this.regionDisplayMap || {}).forEach(([key, value]) => {
+            const baseKey = this.getBaseRegionKey(key);
+            const baseDisplay = value.replace(/\s+\d+$/, '').trim() || value;
+            if (!regionGroups.has(baseKey)) {
+                regionGroups.set(baseKey, {
+                    baseKey,
+                    baseDisplay,
+                    variants: new Set()
+                });
+            }
+            const group = regionGroups.get(baseKey);
+            group.baseDisplay = baseDisplay; // ensure base comes from mapping
+            group.variants.add(value);
+        });
+
+        console.log(`✅ Found ${regionGroups.size} grouped regions in timeline data`);
+        console.log('Regions:', Array.from(regionGroups.values()).slice(0, 10).map(r => ({ base: r.baseDisplay, variants: Array.from(r.variants) })));
+
+        // Persist for later display label lookups (exports, badges)
+        this.timelineRegionGroups = regionGroups;
 
         // Populate region filter dropdown
         const regionFilter = document.getElementById('regionFilter');
@@ -5120,26 +5341,27 @@ class AzureServiceTagsDashboard {
             // Clear existing options except "All Regions"
             regionFilter.innerHTML = '<option value="">All Regions</option>';
 
-            if (regions.size === 0) {
+            if (regionGroups.size === 0) {
                 console.warn('⚠️ No regions found in data');
             } else {
-                // Sort regions by display name for better UX
-                const sortedRegions = Array.from(regions).sort((a, b) => {
-                    const nameA = this.getRegionDisplayName(a);
-                    const nameB = this.getRegionDisplayName(b);
-                    return nameA.localeCompare(nameB);
+                // Sort grouped regions by display name for better UX
+                const sortedRegions = Array.from(regionGroups.values()).sort((a, b) => {
+                    return a.baseDisplay.localeCompare(b.baseDisplay);
                 });
 
-                console.log('📋 Adding', sortedRegions.length, 'regions to dropdown');
+                console.log('📋 Adding', sortedRegions.length, 'grouped regions to dropdown');
 
                 sortedRegions.forEach((region, index) => {
                     const option = document.createElement('option');
-                    option.value = region;
-                    option.textContent = this.getRegionDisplayName(region);
+                    option.value = region.baseKey;
+
+                    const variants = Array.from(region.variants).sort();
+                    const variantSuffix = variants.length > 1 ? ` – includes ${variants.join(', ')}` : '';
+                    option.textContent = `${region.baseDisplay}${variantSuffix}`;
                     regionFilter.appendChild(option);
 
                     if (index < 5) {
-                        console.log(`  Added: ${region} → ${this.getRegionDisplayName(region)}`);
+                        console.log(`  Added: ${region.baseDisplay} (${variants.join(', ') || region.baseDisplay})`);
                     }
                 });
 
@@ -5221,37 +5443,31 @@ class AzureServiceTagsDashboard {
             if (searchTerm) {
                 const dateStr = itemDate.toLocaleDateString().toLowerCase();
                 const hasMatch = dateStr.includes(searchTerm) ||
-                    (item.changes || []).some(change =>
-                        (change.service && change.service.toLowerCase().includes(searchTerm)) ||
-                        (change.region && change.region.toLowerCase().includes(searchTerm)) ||
-                        (change.region && this.getRegionDisplayName(change.region).toLowerCase().includes(searchTerm))
-                    );
+                    (item.changes || []).some(change => {
+                        const regionCode = this.deriveRegionCode(change);
+                        const regionName = regionCode ? this.getRegionDisplayName(regionCode) : '';
+                        return (change.service && this.matchesSearchTerm(change.service, searchTerm)) ||
+                            (regionCode && this.matchesSearchTerm(regionCode, searchTerm)) ||
+                            (regionName && this.matchesSearchTerm(regionName, searchTerm));
+                    });
                 if (!hasMatch) return false;
             }
 
-            // Region filter
+            // Region filter (match on base region key so numbered variants collapse)
             if (regionFilter) {
-                const hasRegion = (item.changes || []).some(change => change.region === regionFilter);
+                const hasRegion = (item.changes || []).some(change => {
+                    const regionCode = this.deriveRegionCode(change);
+                    return this.getBaseRegionKey(regionCode) === regionFilter;
+                });
                 if (!hasRegion) return false;
             }
 
             return true;
         });
 
-        // Re-render timeline with filtered data
+        // Reset pagination on new filter and re-render timeline
+        this.timelineVisibleCount = this.timelinePageSize;
         this.renderFilteredTimeline();
-
-        // Update results count
-        const resultsCount = document.getElementById('resultsCount');
-        if (resultsCount) {
-            const total = this.allTimelineData.length;
-            const filtered = this.filteredTimelineData.length;
-            if (filtered === total) {
-                resultsCount.textContent = `Showing all ${total} weeks`;
-            } else {
-                resultsCount.textContent = `Showing ${filtered} of ${total} weeks`;
-            }
-        }
     }
 
     // Render filtered timeline
@@ -5260,6 +5476,18 @@ class AzureServiceTagsDashboard {
         if (!timelineContainer) return;
 
         if (this.filteredTimelineData.length === 0) {
+            const loadMoreBtn = document.getElementById('loadMoreTimeline');
+            if (loadMoreBtn) {
+                loadMoreBtn.classList.add('hidden');
+                loadMoreBtn.disabled = true;
+                loadMoreBtn.textContent = 'Load More History';
+            }
+
+            const resultsCount = document.getElementById('resultsCount');
+            if (resultsCount) {
+                resultsCount.textContent = 'Showing 0 of 0 weeks';
+            }
+
             timelineContainer.innerHTML = `
                 <div class="timeline-empty">
                     <p>🔍 No results found</p>
@@ -5273,8 +5501,12 @@ class AzureServiceTagsDashboard {
         const searchTerm = document.getElementById('historySearch')?.value.toLowerCase() || '';
         const regionFilter = document.getElementById('regionFilter')?.value || '';
 
+        // Determine visible slice
+        const visibleCount = Math.min(this.timelineVisibleCount, this.filteredTimelineData.length);
+        const visibleItems = this.filteredTimelineData.slice(0, visibleCount);
+
         // Render timeline items with optional highlighting
-        const timelineHtml = this.filteredTimelineData
+        const timelineHtml = visibleItems
             .map(item => {
                 // If search or region filter is active, add matched details
                 if (searchTerm || regionFilter) {
@@ -5286,10 +5518,68 @@ class AzureServiceTagsDashboard {
             .join('');
         timelineContainer.innerHTML = timelineHtml;
 
+        // Update load more button
+        const loadMoreBtn = document.getElementById('loadMoreTimeline');
+        if (loadMoreBtn) {
+            const total = this.filteredTimelineData.length;
+            const remaining = total - visibleCount;
+
+            // When there are more items to show
+            if (remaining > 0) {
+                loadMoreBtn.classList.remove('hidden');
+                loadMoreBtn.disabled = false;
+                loadMoreBtn.dataset.mode = 'more';
+                loadMoreBtn.textContent = `Load More History (${remaining} more)`;
+            } else if (total > this.timelinePageSize && visibleCount >= total) {
+                // All items are visible but we allow collapsing back to latest page
+                loadMoreBtn.classList.remove('hidden');
+                loadMoreBtn.disabled = false;
+                loadMoreBtn.dataset.mode = 'reset';
+                loadMoreBtn.textContent = `Show Latest ${this.timelinePageSize}`;
+            } else {
+                loadMoreBtn.classList.add('hidden');
+                loadMoreBtn.disabled = true;
+                loadMoreBtn.dataset.mode = '';
+                loadMoreBtn.textContent = 'Load More History';
+            }
+        }
+
+        // Update results count
+        const resultsCount = document.getElementById('resultsCount');
+        if (resultsCount) {
+            const total = this.allTimelineData.length;
+            const filtered = this.filteredTimelineData.length;
+            if (filtered === total) {
+                resultsCount.textContent = `Showing first ${visibleCount} of ${filtered} weeks`;
+            } else {
+                resultsCount.textContent = `Showing first ${visibleCount} of ${filtered} filtered weeks (of ${total} total)`;
+            }
+        }
+
         // Add compare mode styling if active
         if (this.compareMode) {
             this.applyCompareMode();
         }
+    }
+
+    // Load more timeline items
+    loadMoreTimeline() {
+        if (!this.filteredTimelineData || this.filteredTimelineData.length === 0) return;
+        const total = this.filteredTimelineData.length;
+        const remaining = total - this.timelineVisibleCount;
+
+        // If all items are showing, collapse back to the first page
+        if (remaining <= 0 && total > this.timelinePageSize) {
+            this.timelineVisibleCount = this.timelinePageSize;
+        } else {
+            // Otherwise reveal the next page of items
+            this.timelineVisibleCount = Math.min(
+                this.timelineVisibleCount + this.timelinePageSize,
+                total
+            );
+        }
+
+        this.renderFilteredTimeline();
     }
 
     // Render timeline item with search/filter highlights and details
@@ -5298,17 +5588,22 @@ class AzureServiceTagsDashboard {
             return this.renderTimelineItem(item);
         }
 
-        // Find matching changes
-        let matchedChanges = item.changes || [];
+        // Find matching changes (IP-bearing only, including synthetic adds)
+        let matchedChanges = this.normalizeChangesForIP(item.changes);
         if (regionFilter) {
-            matchedChanges = matchedChanges.filter(change => change.region === regionFilter);
+            matchedChanges = matchedChanges.filter(change => {
+                const regionCode = this.deriveRegionCode(change);
+                return this.getBaseRegionKey(regionCode) === regionFilter;
+            });
         }
         if (searchTerm) {
-            matchedChanges = matchedChanges.filter(change =>
-                (change.service && change.service.toLowerCase().includes(searchTerm)) ||
-                (change.region && change.region.toLowerCase().includes(searchTerm)) ||
-                (change.region && this.getRegionDisplayName(change.region).toLowerCase().includes(searchTerm))
-            );
+            matchedChanges = matchedChanges.filter(change => {
+                const regionCode = this.deriveRegionCode(change);
+                const regionName = regionCode ? this.getRegionDisplayName(regionCode) : '';
+                return (change.service && this.matchesSearchTerm(change.service, searchTerm)) ||
+                    (regionCode && this.matchesSearchTerm(regionCode, searchTerm)) ||
+                    (regionName && this.matchesSearchTerm(regionName, searchTerm));
+            });
         }
 
         // Count matched items by region/service
@@ -5401,7 +5696,7 @@ class AzureServiceTagsDashboard {
                 })
                 .join('');
 
-            const regionName = regionFilter ? this.getRegionDisplayName(regionFilter) : 'matching your search';
+            const regionName = regionFilter ? this.getRegionGroupDisplay(regionFilter) : 'matching your search';
 
             matchedDetailsHtml = `
                 <div class="timeline-matched-details">
@@ -5414,6 +5709,14 @@ class AzureServiceTagsDashboard {
                     </div>
                     <div class="matched-services-list">
                         ${servicesList}
+                    </div>
+                </div>
+            `;
+        } else {
+            matchedDetailsHtml = `
+                <div class="timeline-matched-details">
+                    <div class="matched-summary">
+                        <strong>🔍 No IP changes match these filters</strong>
                     </div>
                 </div>
             `;
@@ -5881,11 +6184,11 @@ class AzureServiceTagsDashboard {
                 if (filteredDescription) {
                     let desc = 'Export only what you see: ';
                     if (searchTerm && regionFilter) {
-                        desc += `search "${searchTerm}" in ${this.getRegionDisplayName(regionFilter)}`;
+                        desc += `search "${searchTerm}" in ${this.getRegionGroupDisplay(regionFilter)}`;
                     } else if (searchTerm) {
                         desc += `search "${searchTerm}"`;
                     } else if (regionFilter) {
-                        desc += `${this.getRegionDisplayName(regionFilter)} region`;
+                        desc += `${this.getRegionGroupDisplay(regionFilter)} region`;
                     }
                     filteredDescription.textContent = desc;
                 }
@@ -5917,11 +6220,11 @@ class AzureServiceTagsDashboard {
                 if (csvDescription) {
                     let desc = 'Export detailed IP changes for: ';
                     if (searchTerm && regionFilter) {
-                        desc += `search "${searchTerm}" in ${this.getRegionDisplayName(regionFilter)}`;
+                        desc += `search "${searchTerm}" in ${this.getRegionGroupDisplay(regionFilter)}`;
                     } else if (searchTerm) {
                         desc += `search "${searchTerm}"`;
                     } else if (regionFilter) {
-                        desc += `${this.getRegionDisplayName(regionFilter)} region`;
+                        desc += `${this.getRegionGroupDisplay(regionFilter)} region`;
                     }
                     csvDescription.textContent = desc;
                 }
@@ -6005,7 +6308,7 @@ class AzureServiceTagsDashboard {
             exported: new Date().toISOString(),
             filters: {
                 search: searchTerm || null,
-                region: regionFilter ? this.getRegionDisplayName(regionFilter) : null,
+                region: regionFilter ? this.getRegionGroupDisplay(regionFilter) : null,
                 dateRange: {
                     from: this.filteredTimelineData[this.filteredTimelineData.length - 1]?.date,
                     to: this.filteredTimelineData[0]?.date
@@ -6017,19 +6320,22 @@ class AzureServiceTagsDashboard {
 
         // Process each week
         this.filteredTimelineData.forEach(item => {
-            let matchedChanges = item.changes || [];
+            let matchedChanges = this.normalizeChangesForIP(item.changes);
 
-            // Filter by region
+            // Filter by region (base-key match using derived region code)
             if (regionFilter) {
-                matchedChanges = matchedChanges.filter(change => change.region === regionFilter);
+                matchedChanges = matchedChanges.filter(change => {
+                    const regionCode = this.deriveRegionCode(change);
+                    return this.getBaseRegionKey(regionCode) === regionFilter;
+                });
             }
 
             // Filter by search term
             if (searchTerm) {
                 matchedChanges = matchedChanges.filter(change =>
-                    (change.service && change.service.toLowerCase().includes(searchTerm)) ||
-                    (change.region && change.region.toLowerCase().includes(searchTerm)) ||
-                    (change.region && this.getRegionDisplayName(change.region).toLowerCase().includes(searchTerm))
+                    (change.service && this.matchesSearchTerm(change.service, searchTerm)) ||
+                    (change.region && this.matchesSearchTerm(change.region, searchTerm)) ||
+                    (change.region && this.matchesSearchTerm(this.getRegionDisplayName(change.region), searchTerm))
                 );
             }
 
@@ -6098,8 +6404,8 @@ class AzureServiceTagsDashboard {
             return;
         }
 
-        // CSV Header
-        let csv = 'Date,Service,Region,Change Type,IP Address/Prefix\n';
+        // CSV Header (include raw region code for clarity)
+        let csv = 'Date,Service,Region,RegionCode,Change Type,IP Address/Prefix\n';
 
         let rowCount = 0;
         const maxRows = 50000;
@@ -6118,15 +6424,17 @@ class AzureServiceTagsDashboard {
             changes.forEach(change => {
                 if (rowCount >= maxRows) return;
 
+                const regionCodeRaw = this.deriveRegionCode(change) || 'Global';
                 const service = this.escapeCSV(change.service || 'N/A');
-                const region = this.escapeCSV(change.region ? this.getRegionDisplayName(change.region) : 'Global');
+                const region = this.escapeCSV(regionCodeRaw ? this.getRegionDisplayName(regionCodeRaw) : 'Global');
+                const regionCode = this.escapeCSV(regionCodeRaw);
                 const date = item.date;
 
                 // Added IPs
                 if (change.added_prefixes && change.added_prefixes.length > 0) {
                     change.added_prefixes.forEach(ip => {
                         if (rowCount >= maxRows) return;
-                        csv += `${date},${service},${region},Added,${this.escapeCSV(ip)}\n`;
+                        csv += `${date},${service},${region},${regionCode},Added,${this.escapeCSV(ip)}\n`;
                         rowCount++;
                     });
                 }
@@ -6135,7 +6443,7 @@ class AzureServiceTagsDashboard {
                 if (change.removed_prefixes && change.removed_prefixes.length > 0) {
                     change.removed_prefixes.forEach(ip => {
                         if (rowCount >= maxRows) return;
-                        csv += `${date},${service},${region},Removed,${this.escapeCSV(ip)}\n`;
+                        csv += `${date},${service},${region},${regionCode},Removed,${this.escapeCSV(ip)}\n`;
                         rowCount++;
                     });
                 }
@@ -6177,8 +6485,8 @@ class AzureServiceTagsDashboard {
             return;
         }
 
-        // CSV Header
-        let csv = 'Date,Service,Region,Change Type,IP Address/Prefix\n';
+        // CSV Header (include raw region code for clarity)
+        let csv = 'Date,Service,Region,RegionCode,Change Type,IP Address/Prefix\n';
 
         let rowCount = 0;
         const maxRows = 50000; // Prevent massive files
@@ -6187,20 +6495,25 @@ class AzureServiceTagsDashboard {
         this.filteredTimelineData.forEach(item => {
             if (rowCount >= maxRows) return;
 
-            let matchedChanges = item.changes || [];
+            let matchedChanges = this.normalizeChangesForIP(item.changes);
 
             // Filter by region
             if (regionFilter) {
-                matchedChanges = matchedChanges.filter(change => change.region === regionFilter);
+                matchedChanges = matchedChanges.filter(change => {
+                    const regionCode = this.deriveRegionCode(change);
+                    return this.getBaseRegionKey(regionCode) === regionFilter;
+                });
             }
 
             // Filter by search term
             if (searchTerm) {
-                matchedChanges = matchedChanges.filter(change =>
-                    (change.service && change.service.toLowerCase().includes(searchTerm)) ||
-                    (change.region && change.region.toLowerCase().includes(searchTerm)) ||
-                    (change.region && this.getRegionDisplayName(change.region).toLowerCase().includes(searchTerm))
-                );
+                matchedChanges = matchedChanges.filter(change => {
+                    const regionCode = this.deriveRegionCode(change);
+                    const regionName = regionCode ? this.getRegionDisplayName(regionCode) : '';
+                    return (change.service && this.matchesSearchTerm(change.service, searchTerm)) ||
+                        (regionCode && this.matchesSearchTerm(regionCode, searchTerm)) ||
+                        (regionName && this.matchesSearchTerm(regionName, searchTerm));
+                });
             }
 
             // Export each IP change as a separate row
@@ -6208,14 +6521,16 @@ class AzureServiceTagsDashboard {
                 if (rowCount >= maxRows) return;
 
                 const service = this.escapeCSV(change.service || 'N/A');
-                const region = this.escapeCSV(change.region ? this.getRegionDisplayName(change.region) : 'Global');
+                const regionCodeRaw = this.deriveRegionCode(change) || 'Global';
+                const region = this.escapeCSV(this.getRegionDisplayName(regionCodeRaw) || 'Global');
+                const regionCode = this.escapeCSV(regionCodeRaw);
                 const date = item.date;
 
                 // Added IPs
                 if (change.added_prefixes && change.added_prefixes.length > 0) {
                     change.added_prefixes.forEach(ip => {
                         if (rowCount >= maxRows) return;
-                        csv += `${date},${service},${region},Added,${this.escapeCSV(ip)}\n`;
+                        csv += `${date},${service},${region},${regionCode},Added,${this.escapeCSV(ip)}\n`;
                         rowCount++;
                     });
                 }
@@ -6224,7 +6539,7 @@ class AzureServiceTagsDashboard {
                 if (change.removed_prefixes && change.removed_prefixes.length > 0) {
                     change.removed_prefixes.forEach(ip => {
                         if (rowCount >= maxRows) return;
-                        csv += `${date},${service},${region},Removed,${this.escapeCSV(ip)}\n`;
+                        csv += `${date},${service},${region},${regionCode},Removed,${this.escapeCSV(ip)}\n`;
                         rowCount++;
                     });
                 }

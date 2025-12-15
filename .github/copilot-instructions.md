@@ -1,4 +1,4 @@
-# Azure Service Tags & IP Ranges Watcher - AI Coding Agent Guide
+# Azure Service Tags & IP Ranges Tracker - AI Coding Agent Guide
 
 ## Architecture Overview
 
@@ -6,7 +6,7 @@ This is a **serverless monitoring system** that tracks changes to Azure Service 
 
 - **Data Collection**: `scripts/azure_watcher.py` downloads Microsoft's Service Tags JSON weekly
 - **Change Detection**: Compares current data with previous snapshots, generates diff reports
-- **Web Dashboard**: Static site in `docs/` with interactive charts and search functionality  
+- **Web Dashboard**: Static site in `docs/` with interactive charts and search functionality
 - **Automation**: GitHub Actions (`update-data.yml`) runs weekly, commits data updates
 - **Hosting**: GitHub Pages serves the dashboard from `docs/` folder
 
@@ -21,23 +21,26 @@ This is a **serverless monitoring system** that tracks changes to Azure Service 
 ## Key Implementation Patterns
 
 ### Python Script (`azure_watcher.py`)
+
 - **Scrapes Microsoft's confirmation page** to find current JSON URL (changes weekly)
 - **Hash-based change detection** prevents duplicate processing
 - **Robust error handling** with retries for network failures
 - **Baseline mode** (`--baseline` flag) for initial setup without change detection
 
 ### Dashboard JavaScript (`dashboard.js`)
+
 - **Region mapping**: Programmatic names (e.g., `eastus`) to display names (e.g., `East US`)
 - **Chart.js integration** for time-series visualizations
 - **Real-time search** through 3000+ service tags with regex support
 - **Lazy loading** of historical data for performance
 
 ### Data Structure
+
 ```json
 // docs/data/current.json - Raw Microsoft data
 {"changeNumber": "XXX", "cloud": "Public", "values": [...]}
 
-// docs/data/summary.json - Dashboard statistics  
+// docs/data/summary.json - Dashboard statistics
 {"total_services": 3039, "changes_this_week": 5, "top_active_services": [...]}
 
 // docs/data/changes/latest-changes.json - Detailed diffs

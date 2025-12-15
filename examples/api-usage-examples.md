@@ -1,8 +1,8 @@
-# Azure Service Tags & IP Ranges Watcher - API Usage Examples
+# Azure Service Tags & IP Ranges Tracker - API Usage Examples
 
 ## 🎯 Overview
 
-This document shows how to use the Azure Service Tags & IP Ranges Watcher as a public API to monitor specific services and detect changes.
+This document shows how to use the Azure Service Tags & IP Ranges Tracker as a public API to monitor specific services and detect changes.
 
 ## 📡 Base URL
 
@@ -208,7 +208,7 @@ Test-AzureServiceChanges -ServiceName "AzureKeyVault"
 📈 Total change events: 1
 
 💡 To view detailed IP lists, visit:
-   https://eliaquimbrandao.github.io/azure-service-tags-watcher
+    https://eliaquimbrandao.github.io/azure-service-tags-tracker
 ```
 
 ---
