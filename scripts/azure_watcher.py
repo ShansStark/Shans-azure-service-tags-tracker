@@ -52,24 +52,26 @@ def download_latest_json() -> Tuple[Dict, Dict]:
             soup = BeautifulSoup(r.text, 'html.parser')
             
             # Extract version (e.g., "2025.10.20")
-            # Look for "Version:" text and get the next paragraph
+            # Look for "Version:" text and get the next element
             version_header = soup.find(string=re.compile("Version:", re.IGNORECASE))
             if version_header:
-                version_p = version_header.find_next('p')
-                if version_p:
-                    metadata['version'] = version_p.text.strip()
+                # Try to find the value in the next element (p, div, span)
+                version_val = version_header.find_next(['p', 'div', 'span'])
+                if version_val:
+                    metadata['version'] = version_val.get_text(strip=True)
                     logging.info(f"Found version: {metadata['version']}")
             
             if not metadata.get('version'):
                 logging.warning("Could not extract version from Microsoft's page")
             
             # Extract date published (e.g., "10/24/2025")
-            # Look for "Date Published:" text and get the next paragraph
+            # Look for "Date Published:" text and get the next element
             date_header = soup.find(string=re.compile("Date Published:", re.IGNORECASE))
             if date_header:
-                date_p = date_header.find_next('p')
-                if date_p:
-                    metadata['date_published'] = date_p.text.strip()
+                # Try to find the value in the next element (p, div, span)
+                date_val = date_header.find_next(['p', 'div', 'span'])
+                if date_val:
+                    metadata['date_published'] = date_val.get_text(strip=True)
                     logging.info(f"Found date published: {metadata['date_published']}")
             
             if not metadata.get('date_published'):
