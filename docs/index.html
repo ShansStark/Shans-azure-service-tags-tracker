@@ -221,36 +221,30 @@
                 </section>
 
                 <!-- Value Proposition Section -->
-                <section class="features-section">
+                <section class="process-section">
                     <div class="features-header">
                         <h2>How Azure IP Changes Are Tracked</h2>
-                        <p>The tracker continuously processes the official Microsoft Azure Service Tags dataset, generating weekly diffs and maintaining a searchable history of IP range and service changes. This allows teams to quickly review what changed, when it changed, and integrate those updates into security and automation workflows.</p>
+                        <p>The tracker continuously processes the official Microsoft Azure Service Tags dataset to generate weekly diffs and a searchable change history, enabling teams to quickly understand what changed and integrate updates into security and automation workflows.</p>
                     </div>
 
-                    <div class="features-grid">
-                        <article class="feature-card" onclick="this.classList.toggle('expanded')">
-                            <div class="card-header">
-                                <h3>Official Microsoft Data, Automatically Synced</h3>
-                                <span class="arrow-icon">▼</span>
-                            </div>
+                    <div class="process-grid">
+                        <div class="process-step">
+                            <div class="step-icon">🔄</div>
+                            <h3>Official Microsoft Data, Automatically Synced</h3>
                             <p>The platform pulls the official Azure Service Tags dataset every Monday at 00:00 UTC via GitHub Actions. Each run generates a current snapshot, weekly diffs, and timestamped history so you always know when IP ranges are added or retired.</p>
-                        </article>
+                        </div>
 
-                        <article class="feature-card" onclick="this.classList.toggle('expanded')">
-                            <div class="card-header">
-                                <h3>Built for Security & Networking Teams</h3>
-                                <span class="arrow-icon">▼</span>
-                            </div>
+                        <div class="process-step">
+                            <div class="step-icon">🛡️</div>
+                            <h3>Built for Security & Networking Teams</h3>
                             <p>Search by service, region, or IP address to quickly identify range changes and understand what changed and when. Detailed change sets can then be exported from the Change History for firewall and network automation.</p>
-                        </article>
+                        </div>
 
-                        <article class="feature-card" onclick="this.classList.toggle('expanded')">
-                            <div class="card-header">
-                                <h3>API & Automation Friendly</h3>
-                                <span class="arrow-icon">▼</span>
-                            </div>
+                        <div class="process-step">
+                            <div class="step-icon">🤖</div>
+                            <h3>API & Automation Friendly</h3>
                             <p>All datasets are published on GitHub Pages under <code>/data</code>. Automation tools can discover available updates, retrieve precise diffs from historical snapshots, or queue downloads using the manifest. Sample scripts for PowerShell, Python, and other languages are provided.</p>
-                        </article>
+                        </div>
                     </div>
                 </section>
 
