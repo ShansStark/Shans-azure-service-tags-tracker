@@ -52,27 +52,49 @@ def download_latest_json() -> Tuple[Dict, Dict]:
             soup = BeautifulSoup(r.text, 'html.parser')
             
             # Extract version (e.g., "2025.10.20")
-            # Look for "Version:" text and get the next element
-            version_header = soup.find(string=re.compile("Version:", re.IGNORECASE))
-            if version_header:
-                # Try to find the value in the next element (p, div, span)
-                version_val = version_header.find_next(['p', 'div', 'span'])
+            # Look for "Version:" text and get the next sibling element
+            version_header_str = soup.find(string=re.compile("Version:", re.IGNORECASE))
+            if version_header_str:
+                version_header_tag = version_header_str.parent
+                # Try to find the value in the next sibling element (p, div, span)
+                version_val = version_header_tag.find_next_sibling(['p', 'div', 'span'])
                 if version_val:
-                    metadata['version'] = version_val.get_text(strip=True)
-                    logging.info(f"Found version: {metadata['version']}")
+                    val_text = version_val.get_text(strip=True)
+                    # Sanity check: version should be short (e.g. < 50 chars)
+                    if len(val_text) < 50:
+                        metadata['version'] = val_text
+                        logging.info(f"Found version: {metadata['version']}")
+                    else:
+                        # If text is too long, try to find version pattern inside it
+                        # Pattern: YYYY.MM.DD
+                        v_match = re.search(r'(\d{4}\.\d{2}\.\d{2})', val_text)
+                        if v_match:
+                            metadata['version'] = v_match.group(1)
+                            logging.info(f"Extracted version from long text: {metadata['version']}")
             
             if not metadata.get('version'):
                 logging.warning("Could not extract version from Microsoft's page")
             
             # Extract date published (e.g., "10/24/2025")
-            # Look for "Date Published:" text and get the next element
-            date_header = soup.find(string=re.compile("Date Published:", re.IGNORECASE))
-            if date_header:
-                # Try to find the value in the next element (p, div, span)
-                date_val = date_header.find_next(['p', 'div', 'span'])
+            # Look for "Date Published:" text and get the next sibling element
+            date_header_str = soup.find(string=re.compile("Date Published:", re.IGNORECASE))
+            if date_header_str:
+                date_header_tag = date_header_str.parent
+                # Try to find the value in the next sibling element (p, div, span)
+                date_val = date_header_tag.find_next_sibling(['p', 'div', 'span'])
                 if date_val:
-                    metadata['date_published'] = date_val.get_text(strip=True)
-                    logging.info(f"Found date published: {metadata['date_published']}")
+                    val_text = date_val.get_text(strip=True)
+                    # Sanity check: date should be short
+                    if len(val_text) < 50:
+                        metadata['date_published'] = val_text
+                        logging.info(f"Found date published: {metadata['date_published']}")
+                    else:
+                        # If text is too long, try to find date pattern inside it
+                        # Pattern: MM/DD/YYYY
+                        d_match = re.search(r'(\d{1,2}/\d{1,2}/\d{4})', val_text)
+                        if d_match:
+                            metadata['date_published'] = d_match.group(1)
+                            logging.info(f"Extracted date published from long text: {metadata['date_published']}")
             
             if not metadata.get('date_published'):
                 logging.warning("Could not extract date published from Microsoft's page")
@@ -96,20 +118,23 @@ def download_latest_json() -> Tuple[Dict, Dict]:
             logging.info(f"Downloading JSON from: {json_url}")
             
             # Extract metadata from filename as fallback (e.g., ServiceTags_Public_20251020.json)
-            if not metadata.get('version'):
-                filename_match = re.search(r'ServiceTags_Public_(\d{8})\.json', json_url, re.IGNORECASE)
-                if filename_match:
-                    date_str = filename_match.group(1)  # e.g., "20251020"
+            filename_match = re.search(r'ServiceTags_Public_(\d{8})\.json', json_url, re.IGNORECASE)
+            if filename_match:
+                date_str = filename_match.group(1)  # e.g., "20251020"
+                
+                # Fallback for version
+                if not metadata.get('version'):
                     # Convert YYYYMMDD to YYYY.MM.DD format for version
                     version_from_filename = f"{date_str[:4]}.{date_str[4:6]}.{date_str[6:8]}"
                     metadata['version'] = version_from_filename
                     logging.info(f"Extracted version from filename: {metadata['version']}")
-                    
-                    # Also convert to MM/DD/YYYY for date_published
+                
+                # Fallback for date_published
+                if not metadata.get('date_published'):
+                    # Convert to MM/DD/YYYY for date_published
                     date_published_from_filename = f"{date_str[4:6]}/{date_str[6:8]}/{date_str[:4]}"
-                    if not metadata.get('date_published'):
-                        metadata['date_published'] = date_published_from_filename
-                        logging.info(f"Extracted date published from filename: {metadata['date_published']}")
+                    metadata['date_published'] = date_published_from_filename
+                    logging.info(f"Extracted date published from filename: {metadata['date_published']}")
             
             r2 = session.get(json_url, timeout=120)
             r2.raise_for_status()
