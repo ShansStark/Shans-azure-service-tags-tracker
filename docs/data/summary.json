@@ -1,87 +1,13 @@
 {
-  "last_updated": "2025-12-15T12:19:56.394528+00:00",
+  "last_updated": "2025-12-21T15:50:49.220888+00:00",
   "total_services": 3092,
-  "total_ip_ranges": 97497,
-  "changes_this_week": 51,
-  "ip_changes": 51,
+  "total_ip_ranges": 98027,
+  "changes_this_week": 0,
+  "ip_changes": 0,
   "service_additions": 0,
   "service_removals": 0,
-  "regional_changes": {
-    "": 8,
-    "eastus": 3,
-    "centralindia": 3,
-    "eastus2euap": 2,
-    "australiacentral": 1,
-    "brazilsouth": 2,
-    "chilec": 1,
-    "indonesiacentral": 2,
-    "japaneast": 2,
-    "newzealandnorth": 2,
-    "uaecentral": 1,
-    "westus": 2,
-    "germanywc": 2,
-    "westcentralus": 2,
-    "australiaeast": 1,
-    "belgiumcentral": 1,
-    "canadacentral": 1,
-    "centralus": 1,
-    "eastasia": 1,
-    "eastus2": 1,
-    "centralfrance": 1,
-    "israelcentral": 1,
-    "italynorth": 1,
-    "malaysiawest": 1,
-    "northeurope": 1,
-    "southcentralus": 1,
-    "spaincentral": 1,
-    "swedencentral": 1,
-    "uksouth": 1,
-    "westeurope": 1,
-    "westus2": 1,
-    "westus3": 1
-  },
-  "top_active_services": [
-    {
-      "service": "AzureCloud",
-      "change_count": 220
-    },
-    {
-      "service": "AzureManagedGrafana",
-      "change_count": 150
-    },
-    {
-      "service": "AzureSentinel",
-      "change_count": 19
-    },
-    {
-      "service": "AzureCloud.eastus2",
-      "change_count": 14
-    },
-    {
-      "service": "AzureCloud.israelcentral",
-      "change_count": 12
-    },
-    {
-      "service": "AzureCloud.centralindia",
-      "change_count": 11
-    },
-    {
-      "service": "AzureCloud.indonesiacentral",
-      "change_count": 11
-    },
-    {
-      "service": "AzureCloud.newzealandnorth",
-      "change_count": 10
-    },
-    {
-      "service": "AzureMonitor",
-      "change_count": 9
-    },
-    {
-      "service": "AzureCloud.centralus",
-      "change_count": 9
-    }
-  ],
+  "regional_changes": {},
+  "top_active_services": [],
   "available_dates": [
     "2025-10-08",
     "2025-10-10",
@@ -94,6 +20,7 @@
     "2025-11-17",
     "2025-11-24",
     "2025-12-01",
-    "2025-12-08"
+    "2025-12-08",
+    "2025-12-15"
   ]
 }
