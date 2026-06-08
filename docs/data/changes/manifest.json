@@ -1,11 +1,16 @@
 {
-  "generated": "2026-06-01T04:59:59.567240+00:00",
+  "generated": "2026-06-08T04:48:32.756357+00:00",
   "total_files": 13,
   "date_range": {
-    "oldest": "2026-03-09",
-    "newest": "2026-06-01"
+    "oldest": "2026-03-16",
+    "newest": "2026-06-08"
   },
   "files": [
+    {
+      "date": "2026-06-08",
+      "filename": "2026-06-08-changes.json",
+      "size": 46980
+    },
     {
       "date": "2026-06-01",
       "filename": "2026-06-01-changes.json",
@@ -65,11 +70,6 @@
       "date": "2026-03-16",
       "filename": "2026-03-16-changes.json",
       "size": 19946
-    },
-    {
-      "date": "2026-03-09",
-      "filename": "2026-03-09-changes.json",
-      "size": 55283
     }
   ]
 }
